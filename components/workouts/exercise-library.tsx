@@ -1,22 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Filter, Search } from "lucide-react";
-import { exercises, equipmentOptions, muscleGroups } from "@/data/exercises";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { exercises as seedExercises } from "@/data/exercises";
+import { listExercises } from "@/services/database/repository";
+import type { Exercise } from "@/types";
 import { includesSearch } from "@/utils/search";
 
 export function ExerciseLibrary() {
+  const [exercises, setExercises] = useState<Exercise[]>(seedExercises);
   const [query, setQuery] = useState("");
   const [muscle, setMuscle] = useState("all");
   const [equipment, setEquipment] = useState("all");
   const [difficulty, setDifficulty] = useState("all");
+
+  useEffect(() => {
+    void listExercises().then((rows) => {
+      if (rows.length) setExercises(rows);
+    });
+  }, []);
+
+  const muscleGroups = useMemo(() => Array.from(new Set(exercises.map((exercise) => exercise.muscleGroup))), [exercises]);
+  const equipmentOptions = useMemo(() => Array.from(new Set(exercises.map((exercise) => exercise.equipment))), [exercises]);
 
   const filtered = useMemo(
     () =>
@@ -29,7 +41,7 @@ export function ExerciseLibrary() {
           (difficulty === "all" || exercise.difficulty === difficulty)
         );
       }),
-    [difficulty, equipment, muscle, query]
+    [difficulty, equipment, exercises, muscle, query]
   );
 
   return (
