@@ -1,6 +1,7 @@
 import {
   Activity,
   Bot,
+  CalendarDays,
   Dumbbell,
   Flame,
   Home,
@@ -17,6 +18,7 @@ import {
 export const appNavigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/today", label: "Today", icon: Flame },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/workout-plan", label: "Plan", icon: Dumbbell },
   { href: "/exercise-library", label: "Library", icon: Library },
   { href: "/meal-planner", label: "Meals", icon: Salad },
