@@ -20,6 +20,9 @@ export function ExerciseLibrary() {
   const [muscle, setMuscle] = useState("all");
   const [equipment, setEquipment] = useState("all");
   const [difficulty, setDifficulty] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [location, setLocation] = useState("all");
+  const [movementPattern, setMovementPattern] = useState("all");
 
   useEffect(() => {
     void listExercises().then((rows) => {
@@ -29,6 +32,7 @@ export function ExerciseLibrary() {
 
   const muscleGroups = useMemo(() => Array.from(new Set(exercises.map((exercise) => exercise.muscleGroup))), [exercises]);
   const equipmentOptions = useMemo(() => Array.from(new Set(exercises.map((exercise) => exercise.equipment))), [exercises]);
+  const categoryOptions = useMemo(() => Array.from(new Set(exercises.map((exercise) => exercise.category).filter(Boolean))), [exercises]);
 
   const filtered = useMemo(
     () =>
@@ -38,16 +42,19 @@ export function ExerciseLibrary() {
           matchesQuery &&
           (muscle === "all" || exercise.muscleGroup === muscle) &&
           (equipment === "all" || exercise.equipment === equipment) &&
-          (difficulty === "all" || exercise.difficulty === difficulty)
+          (difficulty === "all" || exercise.difficulty === difficulty) &&
+          (category === "all" || exercise.category === category) &&
+          (location === "all" || (exercise.trainingLocation ?? "gym") === location) &&
+          (movementPattern === "all" || (exercise.movementPattern ?? "full_body") === movementPattern)
         );
       }),
-    [difficulty, equipment, muscle, query]
+    [category, difficulty, equipment, location, movementPattern, muscle, query, exercises]
   );
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-[1fr_180px_180px_180px]">
+        <CardContent className="grid gap-3 p-4 md:grid-cols-3 xl:grid-cols-7">
           <label className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercise, muscle, equipment..." />
@@ -73,6 +80,29 @@ export function ExerciseLibrary() {
             <option value="beginner">Beginner</option>
             <option value="intermediate">Intermediate</option>
             <option value="advanced">Advanced</option>
+          </Select>
+          <Select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter by category">
+            <option value="all">All categories</option>
+            {categoryOptions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </Select>
+          <Select value={location} onChange={(event) => setLocation(event.target.value)} aria-label="Filter by location">
+            <option value="all">Gym + home</option>
+            <option value="gym">Gym</option>
+            <option value="home">Home</option>
+            <option value="both">Both</option>
+          </Select>
+          <Select value={movementPattern} onChange={(event) => setMovementPattern(event.target.value)} aria-label="Filter by movement pattern">
+            <option value="all">All patterns</option>
+            <option value="push">Push</option>
+            <option value="pull">Pull</option>
+            <option value="legs">Legs</option>
+            <option value="mobility">Mobility</option>
+            <option value="stretching">Stretching</option>
+            <option value="cardio">Cardio</option>
           </Select>
         </CardContent>
       </Card>
