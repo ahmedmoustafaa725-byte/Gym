@@ -100,17 +100,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (error) throw error;
           const sessionUser = data.user;
           if (!sessionUser) throw new Error("No Supabase session was returned.");
-          setUser(await userFromSupabaseAuth(sessionUser));
+          const nextUser = await userFromSupabaseAuth(sessionUser);
+          setUser(nextUser);
+          router.push(nextUser.onboardingComplete ? "/dashboard" : "/onboarding");
         } else {
-          setUser({
+          const nextUser = {
             id: `local-${email}`,
             email,
             name: email.split("@")[0],
             role: roleFromEmail(email),
             onboardingComplete: true
-          });
+          };
+          setUser(nextUser);
+          router.push("/dashboard");
         }
-        router.push("/dashboard");
       },
       async signUp(name: string, email: string, password: string) {
         if (shouldUseSupabase && supabase) {

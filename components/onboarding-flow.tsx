@@ -27,6 +27,22 @@ function prettify(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function isRequiredField(key: keyof Profile) {
+  return [
+    "age",
+    "gender",
+    "heightCm",
+    "weightKg",
+    "goal",
+    "experience",
+    "trainingLocation",
+    "daysPerWeek",
+    "minutesPerWorkout",
+    "dietPreference",
+    "mealsPerDay"
+  ].includes(key);
+}
+
 export function OnboardingFlow() {
   const router = useRouter();
   const { user, setUser } = useAuth();
@@ -156,11 +172,15 @@ export function OnboardingFlow() {
                 {visibleQuestions.map((question) => {
                   const key = question.key as keyof Profile;
                   const value = draft[key];
+                  const required = isRequiredField(key);
                   return (
                     <label key={question.key} className="grid gap-2 text-sm font-medium">
                       {question.label}
                       {question.type === "select" ? (
                         <Select value={String(value)} onChange={(event) => updateField(key, event.target.value)}>
+                          <option value="" disabled={!required}>
+                            {required ? "Select an option" : "Optional"}
+                          </option>
                           {("options" in question ? question.options : []).map((option) => (
                             <option key={option} value={option}>
                               {prettify(option)}
@@ -187,6 +207,9 @@ export function OnboardingFlow() {
                         <Input
                           type={question.type === "number" ? "number" : "text"}
                           value={String(value ?? "")}
+                          required={required}
+                          min={question.key === "age" ? 12 : question.key === "heightCm" ? 100 : question.key === "weightKg" ? 30 : question.key === "daysPerWeek" ? 1 : question.key === "minutesPerWorkout" ? 10 : question.key === "mealsPerDay" ? 1 : undefined}
+                          max={question.key === "age" ? 100 : question.key === "heightCm" ? 250 : question.key === "weightKg" ? 350 : question.key === "daysPerWeek" ? 7 : question.key === "minutesPerWorkout" ? 300 : question.key === "mealsPerDay" ? 8 : undefined}
                           onChange={(event) => updateField(key, question.type === "number" ? Number(event.target.value) : event.target.value)}
                           placeholder={
                             question.key === "age"
