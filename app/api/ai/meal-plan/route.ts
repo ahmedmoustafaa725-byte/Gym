@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { meals as seedMeals } from "@/data/meals";
 import { generateGeminiJSON } from "@/services/ai/geminiClient";
-import type { MacroTarget, Meal, Profile } from "@/types";
+import { validateMealPlan } from "@/services/ai/planVerifier";
+import type { FoodItem, MacroTarget, Meal, Profile } from "@/types";
 
 type MealPlanResponse = {
   meals: Meal[];
@@ -41,19 +42,31 @@ function normalizeMeal(raw: Partial<Meal>, fallback: Meal, index: number): Meal 
 }
 
 export async function POST(request: Request) {
-  const { profile, targets, meals } = (await request.json()) as {
+  const { profile, targets, meals, foodItems } = (await request.json()) as {
     profile: Profile;
     targets: MacroTarget;
     meals?: Meal[];
+    foodItems?: FoodItem[];
   };
 
   const fallback = fallbackMealPlan();
   const sourceMeals = (meals?.length ? meals : seedMeals).slice(0, 25);
+  const egyptianFoodItems = (foodItems ?? []).slice(0, 80).map((item) => ({
+    foodName: item.foodName,
+    servingSize: item.servingSize,
+    calories: item.calories,
+    proteinG: item.proteinG,
+    carbsG: item.carbsG,
+    fatG: item.fatG,
+    cuisine: item.cuisine,
+    sourceType: item.sourceType
+  }));
   const prompt = `
 You are NileFit AI, a nutrition coach for Egyptian and Middle Eastern food.
 Generate a practical daily meal plan using real foods the user likes.
 Respect allergies, disliked foods, budget level, cooking time, and calorie/macros target.
 Avoid extreme starvation diets.
+If Egyptian cuisine is selected, use the Egyptian macro database entries below. Do not invent random Egyptian macros.
 
 Return ONLY JSON:
 {
@@ -89,11 +102,37 @@ ${JSON.stringify(targets)}
 
 Available meal database:
 ${JSON.stringify(sourceMeals)}
+
+Egyptian macro database:
+${JSON.stringify(egyptianFoodItems)}
 `;
 
-  const raw = await generateGeminiJSON<MealPlanResponse>(prompt, fallback, { temperature: 0.35 });
+  let raw = await generateGeminiJSON<MealPlanResponse>(prompt, fallback, { temperature: 0.35 });
   const rawMeals = Array.isArray(raw.meals) ? raw.meals : fallback.meals;
-  const normalizedMeals = rawMeals.slice(0, 6).map((meal, index) => normalizeMeal(meal, fallback.meals[index] ?? fallback.meals[0], index));
+  let normalizedMeals = rawMeals.slice(0, 6).map((meal, index) => normalizeMeal(meal, fallback.meals[index] ?? fallback.meals[0], index));
+  let validation = validateMealPlan(normalizedMeals, targets);
+
+  if (!validation.valid) {
+    const retryRaw = await generateGeminiJSON<MealPlanResponse>(
+      `${prompt}
+
+The previous response failed validation:
+${validation.issues.map((issue) => `- ${issue}`).join("\n")}
+
+Retry once with realistic calories/macros. Return only valid JSON.`,
+      fallback,
+      { temperature: 0.2 }
+    );
+    raw = retryRaw;
+    const retryMeals = Array.isArray(raw.meals) ? raw.meals : fallback.meals;
+    normalizedMeals = retryMeals.slice(0, 6).map((meal, index) => normalizeMeal(meal, fallback.meals[index] ?? fallback.meals[0], index));
+    validation = validateMealPlan(normalizedMeals, targets);
+  }
+
+  if (!validation.valid) {
+    normalizedMeals = fallback.meals;
+    raw = fallback;
+  }
   const shoppingList = Array.isArray(raw.shoppingList) && raw.shoppingList.length
     ? raw.shoppingList.map(String)
     : Array.from(new Set(normalizedMeals.flatMap((meal) => meal.ingredients.map((ingredient) => `${ingredient.amount} ${ingredient.name}`))));
