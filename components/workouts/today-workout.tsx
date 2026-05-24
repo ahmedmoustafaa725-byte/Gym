@@ -121,6 +121,9 @@ export function TodayWorkout() {
                 </CardHeader>
                 <CardContent className="grid gap-4 lg:grid-cols-[1fr_280px]">
                   <div className="space-y-3 text-sm text-muted-foreground">
+                    {exercise.videoUrl ? (
+                      <video className="mb-3 aspect-video w-full rounded-md border bg-black object-cover" src={exercise.videoUrl} controls muted preload="metadata" />
+                    ) : null}
                     <p className="font-medium text-foreground">Instructions</p>
                     <ul className="space-y-1">
                       {exercise.instructions.map((instruction) => (
@@ -137,15 +140,15 @@ export function TodayWorkout() {
                   <div className="grid gap-3">
                     <label className="grid gap-2 text-sm font-medium">
                       Weight used (kg)
-                      <Input type="number" value={log?.weightKg ?? ""} onChange={(event) => updateExercise(exercise.exerciseId, { weightKg: Number(event.target.value) })} />
+                      <Input type="number" min="0" step="0.5" value={log?.weightKg ?? ""} onChange={(event) => updateExercise(exercise.exerciseId, { weightKg: Number(event.target.value) })} placeholder="Weight used in kg, e.g. 40" />
                     </label>
                     <label className="grid gap-2 text-sm font-medium">
                       Reps achieved
-                      <Input type="number" value={log?.reps ?? ""} onChange={(event) => updateExercise(exercise.exerciseId, { reps: Number(event.target.value) })} />
+                      <Input type="number" min="0" value={log?.reps ?? ""} onChange={(event) => updateExercise(exercise.exerciseId, { reps: Number(event.target.value) })} placeholder="Reps completed, e.g. 10" />
                     </label>
                     <label className="grid gap-2 text-sm font-medium">
                       Notes
-                      <Input value={log?.notes ?? ""} onChange={(event) => updateExercise(exercise.exerciseId, { notes: event.target.value })} placeholder="Form, pain, tempo..." />
+                      <Input value={log?.notes ?? ""} onChange={(event) => updateExercise(exercise.exerciseId, { notes: event.target.value })} placeholder="Optional notes, e.g. form felt strong" />
                     </label>
                   </div>
                 </CardContent>
@@ -175,7 +178,7 @@ export function TodayWorkout() {
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Workout notes
-              <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Energy, pain, wins, next time..." />
+              <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional workout notes, e.g. energy, pain, wins, next time" />
             </label>
             <Button className="w-full" onClick={saveSession}>
               <Save className="h-4 w-4" />
