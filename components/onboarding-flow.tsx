@@ -14,7 +14,7 @@ import { coachQuestions } from "@/data/onboarding";
 import { useAppState } from "@/lib/app-state";
 import { useAuth } from "@/lib/auth-context";
 import { estimateTargets, generateWorkoutPlan } from "@/services/ai/workoutGenerator";
-import { markOnboardingComplete, saveCalorieTarget, saveMealPlan, saveOnboardingAnswers } from "@/services/database/repository";
+import { markOnboardingComplete, saveAiGeneratedPlan, saveCalorieTarget, saveMealPlan, saveOnboardingAnswers } from "@/services/database/repository";
 import type { Meal, Profile } from "@/types";
 
 const steps = [
@@ -30,7 +30,7 @@ function prettify(value: string) {
 export function OnboardingFlow() {
   const router = useRouter();
   const { user, setUser } = useAuth();
-  const { profile, setProfile, setWorkoutPlan, meals } = useAppState();
+  const { profile, setProfile, setWorkoutPlan, meals, foodItems } = useAppState();
   const [draft, setDraft] = useState<Profile>({ ...profile, userId: user?.id ?? profile.userId });
   const [step, setStep] = useState(0);
   const [generating, setGenerating] = useState(false);
@@ -71,7 +71,7 @@ export function OnboardingFlow() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ profile: savedProfile, targets: savedTargets, meals })
+        body: JSON.stringify({ profile: savedProfile, targets: savedTargets, meals, foodItems })
       });
 
       if (!response.ok) throw new Error("Meal generation failed");
@@ -95,6 +95,15 @@ export function OnboardingFlow() {
     const generatedMealPlan = await generateAIMealPlan(savedProfile, savedTargets);
     setProfile(savedProfile);
     setWorkoutPlan(generatedWorkoutPlan);
+    void saveAiGeneratedPlan({
+      userId: savedProfile.userId,
+      planType: "workout",
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      prompt: "Onboarding workout plan generated from first-time coach questionnaire.",
+      response: generatedWorkoutPlan,
+      validationStatus: "passed"
+    });
     void saveOnboardingAnswers(savedProfile);
     void saveCalorieTarget(savedProfile);
     if (generatedMealPlan) {
@@ -107,6 +116,15 @@ export function OnboardingFlow() {
         shoppingList: generatedMealPlan.shoppingList,
         note: generatedMealPlan.note,
         createdAt: new Date().toISOString()
+      });
+      void saveAiGeneratedPlan({
+        userId: savedProfile.userId,
+        planType: "diet",
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+        prompt: "Onboarding diet plan generated from profile, calorie target, macro target, and meal database.",
+        response: generatedMealPlan,
+        validationStatus: "passed"
       });
     }
     void markOnboardingComplete(savedProfile.userId, true);

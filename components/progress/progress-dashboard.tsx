@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { Camera, Dumbbell, ImagePlus, Moon, Plus, Scale, Sparkles, TrendingUp, X } from "lucide-react";
+import { Camera, Dumbbell, Edit3, ImagePlus, Moon, Plus, Save, Scale, Sparkles, Trash2, TrendingUp, X } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAppState } from "@/lib/app-state";
 import { todayISO } from "@/lib/date";
 import { generateSmartRecommendations } from "@/services/recommendations/smartAdjustments";
-import type { ProgressEntry, WeeklyCheckin } from "@/types";
+import type { BodyMeasurements, ProgressEntry, WeeklyCheckin } from "@/types";
 
 function toNumber(value: string) {
   const parsed = Number(value);
@@ -56,13 +56,45 @@ function Modal({
 }
 
 export function ProgressDashboard() {
-  const { progress, setProgress, checkins, setCheckins, sessions, foodLogs, targets, profile, uploadProgressPhoto } = useAppState();
+  const {
+    progress,
+    setProgress,
+    deleteProgressEntry,
+    checkins,
+    setCheckins,
+    sessions,
+    foodLogs,
+    targets,
+    profile,
+    uploadProgressPhoto,
+    deleteProgressPhoto,
+    progressPhotos,
+    bodyMeasurements,
+    saveBodyMeasurement,
+    deleteBodyMeasurement
+  } = useAppState();
   const [showProgressForm, setShowProgressForm] = useState(false);
   const [showCheckinForm, setShowCheckinForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState("");
   const [progressPhoto, setProgressPhoto] = useState<File | null>(null);
   const [checkinPhoto, setCheckinPhoto] = useState<File | null>(null);
+  const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
+  const [measurementEdit, setMeasurementEdit] = useState({
+    waistCm: "",
+    hipsCm: "",
+    chestCm: "",
+    underbustCm: "",
+    neckCm: "",
+    shouldersCm: "",
+    leftArmCm: "",
+    rightArmCm: "",
+    leftThighCm: "",
+    rightThighCm: "",
+    glutesCm: "",
+    calvesCm: "",
+    notes: ""
+  });
   const [entry, setEntry] = useState({
     weightKg: "",
     waistCm: "",
@@ -126,9 +158,33 @@ export function ProgressDashboard() {
   }, [sessions]);
 
   const photos = [
-    ...progress.filter((item) => item.photoUrl).map((item) => ({ id: item.id, url: item.photoUrl!, label: `Progress ${item.date}` })),
-    ...checkins.filter((item) => item.photoUrl).map((item) => ({ id: item.id, url: item.photoUrl!, label: `Check-in ${item.weekStart}` }))
-  ];
+    ...progressPhotos.map((item) => ({
+      id: item.id,
+      url: item.photoUrl ?? "",
+      label: item.label ?? "Progress photo",
+      storagePath: item.storagePath,
+      progressEntryId: item.progressEntryId,
+      weeklyCheckinId: item.weeklyCheckinId
+    })),
+    ...progress
+      .filter((item) => item.photoUrl)
+      .map((item) => ({
+        id: item.id,
+        url: item.photoUrl!,
+        label: `Progress ${item.date}`,
+        storagePath: item.photoPath,
+        progressEntryId: item.id
+      })),
+    ...checkins
+      .filter((item) => item.photoUrl)
+      .map((item) => ({
+        id: item.id,
+        url: item.photoUrl!,
+        label: `Check-in ${item.weekStart}`,
+        storagePath: item.photoPath,
+        weeklyCheckinId: item.id
+      }))
+  ].filter((photo, index, list) => photo.url && list.findIndex((item) => (item.storagePath || item.url) === (photo.storagePath || photo.url)) === index);
 
   const summaryCards = [
     { label: "Current weight", value: `${progress.at(-1)?.weightKg ?? profile.weightKg} kg`, icon: Scale, detail: "Latest entry" },
@@ -136,6 +192,85 @@ export function ProgressDashboard() {
     { label: "Consistency", value: `${progress.at(-1)?.workoutConsistency ?? 0}%`, icon: Dumbbell, detail: "Workout completion" },
     { label: "Sleep", value: `${checkins.at(-1)?.sleepHours ?? 0} h`, icon: Moon, detail: "Latest check-in" }
   ];
+
+  function measurementFromEntry(nextEntry: ProgressEntry): BodyMeasurements | null {
+    const measurement: BodyMeasurements = {
+      id: `measurement-${crypto.randomUUID()}`,
+      userId: profile.userId,
+      progressEntryId: nextEntry.id,
+      measuredAt: nextEntry.date,
+      waistCm: nextEntry.waistCm,
+      hipsCm: nextEntry.hipsCm,
+      chestCm: nextEntry.chestCm,
+      underbustCm: nextEntry.underbustCm,
+      neckCm: nextEntry.neckCm,
+      shouldersCm: nextEntry.shouldersCm,
+      leftArmCm: nextEntry.leftArmCm ?? nextEntry.armCm,
+      rightArmCm: nextEntry.rightArmCm ?? nextEntry.armCm,
+      leftThighCm: nextEntry.leftThighCm ?? nextEntry.thighCm,
+      rightThighCm: nextEntry.rightThighCm ?? nextEntry.thighCm,
+      glutesCm: nextEntry.glutesCm,
+      calvesCm: nextEntry.calvesCm,
+      notes: nextEntry.notes
+    };
+    const hasMeasurement = [
+      measurement.waistCm,
+      measurement.hipsCm,
+      measurement.chestCm,
+      measurement.underbustCm,
+      measurement.neckCm,
+      measurement.shouldersCm,
+      measurement.leftArmCm,
+      measurement.rightArmCm,
+      measurement.leftThighCm,
+      measurement.rightThighCm,
+      measurement.glutesCm,
+      measurement.calvesCm
+    ].some((value) => value !== undefined);
+    return hasMeasurement ? measurement : null;
+  }
+
+  function beginMeasurementEdit(measurement: BodyMeasurements) {
+    setEditingMeasurementId(measurement.id);
+    setMeasurementEdit({
+      waistCm: measurement.waistCm?.toString() ?? "",
+      hipsCm: measurement.hipsCm?.toString() ?? "",
+      chestCm: measurement.chestCm?.toString() ?? "",
+      underbustCm: measurement.underbustCm?.toString() ?? "",
+      neckCm: measurement.neckCm?.toString() ?? "",
+      shouldersCm: measurement.shouldersCm?.toString() ?? "",
+      leftArmCm: measurement.leftArmCm?.toString() ?? "",
+      rightArmCm: measurement.rightArmCm?.toString() ?? "",
+      leftThighCm: measurement.leftThighCm?.toString() ?? "",
+      rightThighCm: measurement.rightThighCm?.toString() ?? "",
+      glutesCm: measurement.glutesCm?.toString() ?? "",
+      calvesCm: measurement.calvesCm?.toString() ?? "",
+      notes: measurement.notes ?? ""
+    });
+  }
+
+  async function saveMeasurementEdit(measurement: BodyMeasurements) {
+    const updated: BodyMeasurements = {
+      ...measurement,
+      waistCm: optionalNumber(measurementEdit.waistCm),
+      hipsCm: optionalNumber(measurementEdit.hipsCm),
+      chestCm: optionalNumber(measurementEdit.chestCm),
+      underbustCm: optionalNumber(measurementEdit.underbustCm),
+      neckCm: optionalNumber(measurementEdit.neckCm),
+      shouldersCm: optionalNumber(measurementEdit.shouldersCm),
+      leftArmCm: optionalNumber(measurementEdit.leftArmCm),
+      rightArmCm: optionalNumber(measurementEdit.rightArmCm),
+      leftThighCm: optionalNumber(measurementEdit.leftThighCm),
+      rightThighCm: optionalNumber(measurementEdit.rightThighCm),
+      glutesCm: optionalNumber(measurementEdit.glutesCm),
+      calvesCm: optionalNumber(measurementEdit.calvesCm),
+      notes: measurementEdit.notes.trim() || undefined
+    };
+    await saveBodyMeasurement(updated);
+    setEditingMeasurementId(null);
+    setNotice("Body measurement updated.");
+    window.setTimeout(() => setNotice(""), 2500);
+  }
 
   async function submitProgress(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -169,7 +304,11 @@ export function ProgressDashboard() {
         photoPath: uploaded?.path,
         photoUrl: uploaded?.url
       };
+      const nextMeasurement = measurementFromEntry(nextEntry);
       setProgress((current) => [...current, nextEntry]);
+      if (nextMeasurement) {
+        await saveBodyMeasurement(nextMeasurement);
+      }
       setEntry({
         weightKg: "",
         waistCm: "",
@@ -192,6 +331,9 @@ export function ProgressDashboard() {
       setShowProgressForm(false);
       setNotice("Progress entry saved to Supabase.");
       window.setTimeout(() => setNotice(""), 2500);
+    } catch {
+      setNotice("Could not save progress. Check the progress-photos bucket and Supabase policies.");
+      window.setTimeout(() => setNotice(""), 3500);
     } finally {
       setUploading(false);
     }
@@ -238,6 +380,23 @@ export function ProgressDashboard() {
       setShowCheckinForm(false);
       setNotice("Weekly check-in saved to Supabase.");
       window.setTimeout(() => setNotice(""), 2500);
+    } catch {
+      setNotice("Could not save weekly check-in. Check Supabase Storage and RLS policies.");
+      window.setTimeout(() => setNotice(""), 3500);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removePhoto(photo: { id: string; storagePath?: string; progressEntryId?: string; weeklyCheckinId?: string }) {
+    setUploading(true);
+    try {
+      await deleteProgressPhoto(photo);
+      setNotice("Progress photo deleted.");
+      window.setTimeout(() => setNotice(""), 2500);
+    } catch {
+      setNotice("Could not delete photo. Check Supabase Storage delete policy.");
+      window.setTimeout(() => setNotice(""), 3500);
     } finally {
       setUploading(false);
     }
@@ -338,10 +497,22 @@ export function ProgressDashboard() {
           <CardContent className="grid gap-3 sm:grid-cols-3">
             {photos.length ? (
               photos.map((photo) => (
-                <div key={photo.id} className="overflow-hidden rounded-lg border bg-background/50">
+                <div key={`${photo.id}-${photo.url}`} className="overflow-hidden rounded-lg border bg-background/50">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={photo.url} alt={photo.label} className="aspect-[4/5] w-full object-cover" />
-                  <p className="p-2 text-xs text-muted-foreground">{photo.label}</p>
+                  <div className="flex items-center justify-between gap-2 p-2">
+                    <p className="truncate text-xs text-muted-foreground">{photo.label}</p>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Delete progress photo"
+                      title="Delete progress photo"
+                      disabled={uploading}
+                      onClick={() => removePhoto(photo)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -350,6 +521,77 @@ export function ProgressDashboard() {
                   {label} photo
                 </div>
               ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Measurement history</CardTitle>
+            <CardDescription>Optional centimeter measurements saved separately from weight entries.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {bodyMeasurements.length ? (
+              bodyMeasurements
+                .slice()
+                .reverse()
+                .map((measurement) => (
+                  <div key={measurement.id} className="rounded-lg border bg-background/60 p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-semibold">{measurement.measuredAt}</p>
+                        {editingMeasurementId === measurement.id ? (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            <Input value={measurementEdit.waistCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, waistCm: event.target.value }))} placeholder="Waist in cm, e.g. 78" />
+                            <Input value={measurementEdit.hipsCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, hipsCm: event.target.value }))} placeholder="Hips in cm, e.g. 96" />
+                            <Input value={measurementEdit.chestCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, chestCm: event.target.value }))} placeholder="Chest in cm, e.g. 92" />
+                            <Input value={measurementEdit.underbustCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, underbustCm: event.target.value }))} placeholder="Underbust in cm, e.g. 82" />
+                            <Input value={measurementEdit.neckCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, neckCm: event.target.value }))} placeholder="Neck in cm, e.g. 36" />
+                            <Input value={measurementEdit.shouldersCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, shouldersCm: event.target.value }))} placeholder="Shoulders in cm, e.g. 108" />
+                            <Input value={measurementEdit.leftArmCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, leftArmCm: event.target.value }))} placeholder="Left arm in cm, e.g. 31" />
+                            <Input value={measurementEdit.rightArmCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, rightArmCm: event.target.value }))} placeholder="Right arm in cm, e.g. 31" />
+                            <Input value={measurementEdit.leftThighCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, leftThighCm: event.target.value }))} placeholder="Left thigh in cm, e.g. 56" />
+                            <Input value={measurementEdit.rightThighCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, rightThighCm: event.target.value }))} placeholder="Right thigh in cm, e.g. 56" />
+                            <Input value={measurementEdit.glutesCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, glutesCm: event.target.value }))} placeholder="Glutes in cm, e.g. 101" />
+                            <Input value={measurementEdit.calvesCm} onChange={(event) => setMeasurementEdit((current) => ({ ...current, calvesCm: event.target.value }))} placeholder="Calves in cm, e.g. 38" />
+                            <Input className="sm:col-span-3" value={measurementEdit.notes} onChange={(event) => setMeasurementEdit((current) => ({ ...current, notes: event.target.value }))} placeholder="Measurement notes, e.g. measured relaxed in the morning" />
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Waist {measurement.waistCm ?? "-"} cm - Hips {measurement.hipsCm ?? "-"} cm - Chest {measurement.chestCm ?? "-"} cm - Arms{" "}
+                            {measurement.leftArmCm ?? measurement.rightArmCm ?? "-"} cm - Thighs {measurement.leftThighCm ?? measurement.rightThighCm ?? "-"} cm
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {editingMeasurementId === measurement.id ? (
+                          <Button size="icon" aria-label="Save measurement" title="Save measurement" onClick={() => saveMeasurementEdit(measurement)}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button size="icon" variant="ghost" aria-label="Edit measurement" title="Edit measurement" onClick={() => beginMeasurementEdit(measurement)}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Delete measurement"
+                          title="Delete measurement"
+                          onClick={() => {
+                            void deleteBodyMeasurement(measurement.id);
+                            setNotice("Body measurement deleted.");
+                            window.setTimeout(() => setNotice(""), 2500);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Add measurements with a progress entry to see history here.</p>
             )}
           </CardContent>
         </Card>
@@ -404,6 +646,27 @@ export function ProgressDashboard() {
             </Button>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent entries</CardTitle>
+            <CardDescription>Remove a mistaken entry without touching photos or meals.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {progress.slice(-4).reverse().map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border bg-background/60 p-3 text-sm">
+                <div>
+                  <p className="font-semibold">{item.weightKg} kg</p>
+                  <p className="text-muted-foreground">{item.date}</p>
+                </div>
+                <Button size="icon" variant="ghost" aria-label="Delete progress entry" title="Delete progress entry" onClick={() => deleteProgressEntry(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {!progress.length ? <p className="text-sm text-muted-foreground">No progress entries yet.</p> : null}
+          </CardContent>
+        </Card>
       </div>
 
       {showProgressForm ? (
@@ -453,6 +716,18 @@ export function ProgressDashboard() {
               <label className="grid gap-2 text-sm font-medium">
                 Thighs
                 <Input type="number" min="0" step="0.1" value={entry.thighCm} onChange={(event) => setEntry((current) => ({ ...current, thighCm: event.target.value }))} placeholder="Thigh circumference in cm, e.g. 56" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Left thigh
+                <Input type="number" min="0" step="0.1" value={entry.leftThighCm} onChange={(event) => setEntry((current) => ({ ...current, leftThighCm: event.target.value }))} placeholder="Left thigh in cm, e.g. 56" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Right thigh
+                <Input type="number" min="0" step="0.1" value={entry.rightThighCm} onChange={(event) => setEntry((current) => ({ ...current, rightThighCm: event.target.value }))} placeholder="Right thigh in cm, e.g. 56" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Glutes
+                <Input type="number" min="0" step="0.1" value={entry.glutesCm} onChange={(event) => setEntry((current) => ({ ...current, glutesCm: event.target.value }))} placeholder="Glutes in cm, e.g. 101" />
               </label>
               <label className="grid gap-2 text-sm font-medium">
                 Calves

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAppState } from "@/lib/app-state";
 import { todayISO } from "@/lib/date";
 import { parseFoodMessage } from "@/services/ai/foodParser";
+import { saveChatMessage } from "@/services/database/repository";
 import type { ChatMessage, FoodLog } from "@/types";
 
 const starterPrompts = [
@@ -36,7 +37,7 @@ function makeAssistantContent(parsed: Omit<FoodLog, "id" | "userId" | "date" | "
 }
 
 export function FoodChatbot() {
-  const { addFoodLog, foodLogs, targets } = useAppState();
+  const { addFoodLog, foodLogs, targets, profile } = useAppState();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -91,6 +92,7 @@ export function FoodChatbot() {
     };
 
     setMessages((current) => [...current, userMessage]);
+    void saveChatMessage(profile.userId, userMessage);
     const parsed = await parseWithGemini(trimmed);
     const assistantMessage: ChatMessage = {
       id: `msg-${crypto.randomUUID()}`,
@@ -110,24 +112,27 @@ export function FoodChatbot() {
     };
     setPendingLog(assistantMessage.parsedFoodLog ?? null);
     setMessages((current) => [...current, assistantMessage]);
+    void saveChatMessage(profile.userId, assistantMessage);
     setIsThinking(false);
   }
 
-  function confirmPendingLog() {
+  async function confirmPendingLog() {
     if (!pendingLog) return;
-    addFoodLog({
+    await addFoodLog({
       ...pendingLog,
       source: "chatbot"
     });
+    const savedMessage: ChatMessage = {
+      id: `msg-${crypto.randomUUID()}`,
+      role: "assistant",
+      content: "Added to today's intake. Your dashboard and calorie tracker are updated.",
+      createdAt: new Date().toISOString()
+    };
     setMessages((current) => [
       ...current,
-      {
-        id: `msg-${crypto.randomUUID()}`,
-        role: "assistant",
-        content: "Added to today's intake. Your dashboard and calorie tracker are updated.",
-        createdAt: new Date().toISOString()
-      }
+      savedMessage
     ]);
+    void saveChatMessage(profile.userId, savedMessage);
     setPendingLog(null);
   }
 

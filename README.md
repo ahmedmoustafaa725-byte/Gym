@@ -191,19 +191,22 @@ The seed data uses public sample sources and technique links. Before making the 
 - Onboarding saves profile answers to Supabase and triggers AI workout/diet generation.
 - Progress entry modal with weight, measurements, notes, photo upload, and Supabase persistence.
 - Weekly check-in modal with energy, hunger, sleep, consistency, mood, notes, photo upload, and Supabase persistence.
+- Progress photo gallery with delete support through Supabase Storage policies.
+- Body measurement history with edit/delete support.
 - Egyptian food seed SQL from the uploaded spreadsheet.
 - Egyptian food search and add-to-today with serving quantity.
 - 2-second meal-added macro confirmation.
+- Gemini workout/diet generations are written to `ai_generated_plans` after validation.
+- Chatbot messages are written to `chat_messages` and confirmed foods flow into `food_logs`.
 - Nutrition recommendation status for daily calories/protein/carbs/fat.
-- Calendar page using saved workout/session/food data.
+- Calendar page using saved workout schedules, meal plans, sessions, and food logs.
 - Workout sessions and exercise logs saved to Supabase.
-- Admin pages load/save through Supabase repository functions.
+- Admin pages load/save exercises, meals, users, workout templates, and prompt settings through Supabase repository functions.
 - Netlify config and deployment documentation.
 
 ## Still Good Next Improvements
 
 - Add a richer drag-and-drop custom meal-plan calendar.
-- Add edit/delete UI for individual body measurement rows and progress photos.
 - Add import tooling for a larger licensed exercise-video provider.
 - Add Arabic UI localization beyond Arabic food search.
 - Add test coverage after dependencies install cleanly in CI/Netlify.

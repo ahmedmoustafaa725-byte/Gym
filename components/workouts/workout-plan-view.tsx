@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ExerciseCard } from "@/components/workouts/exercise-card";
 import { useAppState } from "@/lib/app-state";
 import { generateWorkoutPlan } from "@/services/ai/workoutGenerator";
+import { saveAiGeneratedPlan } from "@/services/database/repository";
 
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -43,9 +44,29 @@ export function WorkoutPlanView() {
         throw new Error("Workout generation failed");
       }
 
-      setWorkoutPlan(await response.json());
+      const generated = await response.json();
+      setWorkoutPlan(generated);
+      void saveAiGeneratedPlan({
+        userId: profile.userId,
+        planType: "workout",
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+        prompt: "Workout plan regenerated from profile settings and exercise library.",
+        response: generated,
+        validationStatus: "passed"
+      });
     } catch {
-      setWorkoutPlan(generateWorkoutPlan(profile, profile.userId));
+      const fallback = generateWorkoutPlan(profile, profile.userId);
+      setWorkoutPlan(fallback);
+      void saveAiGeneratedPlan({
+        userId: profile.userId,
+        planType: "workout",
+        provider: "fallback",
+        model: "local-rule-generator",
+        prompt: "Fallback workout plan generated because Gemini was unavailable.",
+        response: fallback,
+        validationStatus: "passed"
+      });
     } finally {
       setGenerating(false);
     }

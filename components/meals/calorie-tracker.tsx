@@ -17,7 +17,7 @@ import type { FoodLog, Meal } from "@/types";
 export function CalorieTracker() {
   const { foodLogs, addFoodLog, updateFoodLog, deleteFoodLog, targets, setMeals } = useAppState();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [manual, setManual] = useState({ mealName: "", calories: 350, protein: 25, carbs: 35, fat: 10, notes: "" });
+  const [manual, setManual] = useState({ mealName: "", mealTime: "", servingSize: "", calories: 350, protein: 25, carbs: 35, fat: 10, notes: "" });
   const [quickView, setQuickView] = useState<{ added: string; remaining: string } | null>(null);
   const today = todayISO();
   const todayLogs = foodLogs.filter((log) => log.date === today);
@@ -65,7 +65,7 @@ export function CalorieTracker() {
     const log = { ...manual, source: "manual" } satisfies Parameters<typeof addFoodLog>[0];
     await addFoodLog(log);
     showQuickView(log);
-    setManual({ mealName: "", calories: 350, protein: 25, carbs: 35, fat: 10, notes: "" });
+    setManual({ mealName: "", mealTime: "", servingSize: "", calories: 350, protein: 25, carbs: 35, fat: 10, notes: "" });
   }
 
   function copyYesterday() {
@@ -155,7 +155,7 @@ export function CalorieTracker() {
           <Card className="border-accent/30">
             <CardContent className="flex gap-3 p-4 text-sm">
               <AlertTriangle className="h-5 w-5 text-accent" />
-              <p>Your intake is far below today's target. Avoid extreme restriction; add a balanced meal with protein, carbs, and vegetables.</p>
+              <p>Your intake is far below today’s target. Avoid extreme restriction; add a balanced meal with protein, carbs, and vegetables.</p>
             </CardContent>
           </Card>
         ) : null}
@@ -186,7 +186,7 @@ export function CalorieTracker() {
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle>Meal history</CardTitle>
-              <CardDescription>Edit or delete today's logged foods.</CardDescription>
+              <CardDescription>Edit or delete today’s logged foods.</CardDescription>
             </div>
             <Button variant="outline" onClick={copyYesterday}>
               <Copy className="h-4 w-4" />
@@ -271,6 +271,8 @@ export function CalorieTracker() {
               <Input value={manual.mealName} onChange={(event) => setManual((current) => ({ ...current, mealName: event.target.value }))} placeholder="Chicken rice bowl" required />
             </label>
             <div className="grid grid-cols-2 gap-3">
+              <Input value={manual.mealTime} onChange={(event) => setManual((current) => ({ ...current, mealTime: event.target.value }))} placeholder="Meal time, e.g. 13:30" aria-label="Meal time" />
+              <Input value={manual.servingSize} onChange={(event) => setManual((current) => ({ ...current, servingSize: event.target.value }))} placeholder="Serving size, e.g. 1 bowl or 250g" aria-label="Serving size" />
               <Input type="number" min="0" value={manual.calories} onChange={(event) => setManual((current) => ({ ...current, calories: Number(event.target.value) }))} placeholder="Calories, e.g. 520" aria-label="Calories" />
               <Input type="number" min="0" value={manual.protein} onChange={(event) => setManual((current) => ({ ...current, protein: Number(event.target.value) }))} placeholder="Protein in grams, e.g. 35" aria-label="Protein grams" />
               <Input type="number" min="0" value={manual.carbs} onChange={(event) => setManual((current) => ({ ...current, carbs: Number(event.target.value) }))} placeholder="Carbs in grams, e.g. 60" aria-label="Carbs grams" />

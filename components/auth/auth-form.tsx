@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth-context";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { isMockMode } from "@/lib/supabase";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { signIn, signUp } = useAuth();
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(mode === "login" ? "demo@nilefit.app" : "");
-  const [password, setPassword] = useState(mode === "login" ? "demo-password" : "");
+  const [email, setEmail] = useState(mode === "login" && isMockMode ? "demo@nilefit.app" : "");
+  const [password, setPassword] = useState(mode === "login" && isMockMode ? "demo-password" : "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +54,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {mode === "register" ? (
               <label className="grid gap-2 text-sm font-medium">
                 Name
-                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" />
+                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name, e.g. Ahmed Mohamed" />
               </label>
             ) : null}
             <label className="grid gap-2 text-sm font-medium">
@@ -79,9 +79,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               />
             </label>
             {error ? <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
-            {!isSupabaseConfigured ? (
+            {isMockMode ? (
               <p className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
-                Demo mode is active because Supabase env vars are empty. Use any email/password locally; include "admin" in the email for admin access.
+                Demo mode is active because mock auth is enabled or Supabase env vars are empty. Use any email/password; include "admin" in the email for admin access.
               </p>
             ) : null}
             <Button className="w-full" size="lg" type="submit" disabled={loading}>

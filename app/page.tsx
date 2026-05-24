@@ -21,7 +21,7 @@ const features = [
 const faqs = [
   ["Is this website free?", "Yes. The product is designed with no payments, subscriptions, checkout, or premium locked tools."],
   ["Does it support Egyptian food?", "Yes. The MVP includes Arabic and English meal aliases plus normal and fitness versions for common Egyptian meals."],
-  ["Do I need OpenAI right away?", "No. The app includes a mock AI service layer and can be connected to OpenAI later with an API key."]
+  ["Do I need an AI key right away?", "No. Gemini is supported for deployment, and the app falls back to safe rule-based generation if the key is missing."]
 ];
 
 export default function LandingPage() {

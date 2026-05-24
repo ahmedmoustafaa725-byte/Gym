@@ -22,7 +22,7 @@ function weekdayIndex(isoDate: string) {
 }
 
 export function TrainingCalendar() {
-  const { workoutPlan, sessions, foodLogs } = useAppState();
+  const { workoutPlan, sessions, foodLogs, scheduledWorkouts, mealPlans } = useAppState();
   const days = isoDays(14);
   const today = todayISO();
 
@@ -30,10 +30,19 @@ export function TrainingCalendar() {
     <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
       <div className="grid gap-4 md:grid-cols-2">
         {days.map((date) => {
-          const workout = workoutPlan.days.find((day) => day.dayIndex === weekdayIndex(date));
-          const completed = sessions.some((session) => session.date === date && session.workoutDayId === workout?.id);
+          const scheduled = scheduledWorkouts.find((item) => item.scheduledDate === date && item.status !== "rest");
+          const workout = scheduled
+            ? workoutPlan.days.find((day) => day.id === scheduled.workoutDayId)
+            : workoutPlan.days.find((day) => day.dayIndex === weekdayIndex(date));
+          const completed = sessions.some(
+            (session) =>
+              session.date === date &&
+              (session.scheduledWorkoutId === scheduled?.id || session.workoutDayId === workout?.id)
+          );
           const dayFoodLogs = foodLogs.filter((log) => log.date === date);
+          const plannedMeals = mealPlans.filter((plan) => plan.planDate === date);
           const isPast = date < today;
+          const status = completed ? "completed" : scheduled?.status ?? (workout ? (isPast ? "missed" : "scheduled") : "rest");
           return (
             <Card key={date} className={date === today ? "border-primary/40" : undefined}>
               <CardHeader>
@@ -42,7 +51,7 @@ export function TrainingCalendar() {
                     <CardTitle>{new Date(`${date}T12:00:00`).toLocaleDateString("en", { weekday: "long", month: "short", day: "numeric" })}</CardTitle>
                     <CardDescription>{date === today ? "Today" : isPast ? "Past day" : "Upcoming"}</CardDescription>
                   </div>
-                  <Badge>{completed ? "completed" : workout ? isPast ? "missed" : "scheduled" : "rest"}</Badge>
+                  <Badge>{status}</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -64,9 +73,11 @@ export function TrainingCalendar() {
                 <div className="rounded-md border bg-background/60 p-3 text-sm">
                   <div className="flex items-center gap-2 font-semibold">
                     <Utensils className="h-4 w-4 text-secondary" />
-                    Meals logged
+                    Meals
                   </div>
-                  <p className="mt-1 text-muted-foreground">{dayFoodLogs.length} foods logged</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {dayFoodLogs.length} foods logged - {plannedMeals.reduce((sum, plan) => sum + plan.meals.length, 0)} planned meals
+                  </p>
                 </div>
                 {date === today ? (
                   <Button asChild className="w-full">

@@ -41,7 +41,7 @@ export function ExerciseLibrary() {
           (difficulty === "all" || exercise.difficulty === difficulty)
         );
       }),
-    [difficulty, equipment, exercises, muscle, query]
+    [difficulty, equipment, muscle, query]
   );
 
   return (

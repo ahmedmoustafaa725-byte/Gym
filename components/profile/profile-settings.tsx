@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAppState } from "@/lib/app-state";
 import { injuryWarning, safetyDisclaimer } from "@/lib/safety";
 import { estimateTargets, generateWorkoutPlan } from "@/services/ai/workoutGenerator";
+import { saveAiGeneratedPlan } from "@/services/database/repository";
 import type { Profile } from "@/types";
 
 export function ProfileSettings() {
@@ -53,6 +54,15 @@ export function ProfileSettings() {
     const generatedPlan = await generateAIWorkoutPlan(draft);
     setProfile(draft);
     setWorkoutPlan(generatedPlan);
+    void saveAiGeneratedPlan({
+      userId: draft.userId,
+      planType: "workout",
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      prompt: "Profile settings save and regenerate workout plan.",
+      response: generatedPlan,
+      validationStatus: "passed"
+    });
     setGenerating(false);
   }
 

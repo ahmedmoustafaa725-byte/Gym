@@ -12,7 +12,7 @@ import { todayISO } from "@/lib/date";
 import { getTodayWorkout } from "@/services/ai/workoutGenerator";
 
 export function DashboardOverview() {
-  const { targets, foodLogs, workoutPlan, progress } = useAppState();
+  const { targets, foodLogs, workoutPlan, progress, profile } = useAppState();
   const today = todayISO();
   const todayLogs = foodLogs.filter((log) => log.date === today);
   const eaten = todayLogs.reduce((sum, log) => sum + log.calories, 0);
@@ -20,7 +20,7 @@ export function DashboardOverview() {
   const carbs = todayLogs.reduce((sum, log) => sum + log.carbs, 0);
   const fat = todayLogs.reduce((sum, log) => sum + log.fat, 0);
   const workout = getTodayWorkout(workoutPlan);
-  const latestWeight = progress.at(-1)?.weightKg ?? 0;
+  const latestWeight = progress.at(-1)?.weightKg ?? profile.weightKg;
   const calorieProgress = (eaten / targets.calories) * 100;
 
   const chartData = progress.map((entry) => ({
@@ -34,7 +34,7 @@ export function DashboardOverview() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Flame} label="Calories eaten" value={`${eaten} kcal`} subtext={`${Math.max(0, targets.calories - eaten)} kcal remaining`} progress={calorieProgress} />
         <MetricCard icon={Activity} label="Protein" value={`${protein}g`} subtext={`Target ${targets.protein}g`} progress={(protein / targets.protein) * 100} delay={0.05} />
-        <MetricCard icon={Droplets} label="Water intake" value="1.8 L" subtext="Goal 2.7 L today" progress={67} delay={0.1} />
+        <MetricCard icon={Droplets} label="Water intake" value="Not logged" subtext={`Goal ${Math.round((targets.waterMl ?? 2500) / 100) / 10} L today`} progress={0} delay={0.1} />
         <MetricCard icon={Scale} label="Current weight" value={`${latestWeight} kg`} subtext="Latest weekly check-in" delay={0.15} />
       </div>
 
@@ -148,7 +148,9 @@ export function DashboardOverview() {
           <div>
             <p className="font-semibold">AI coach quick message</p>
             <p className="text-sm text-muted-foreground">
-              You are on pace today. Add one high-protein snack if dinner is light, and use the 20-minute workout option if your schedule gets tight.
+              {todayLogs.length
+                ? "Your saved meals are updating the dashboard. Add protein first if the next meal is small, and use the 20-minute workout option if your schedule gets tight."
+                : "Log your first meal or start today's workout, then NileFit will tailor this message from your real Supabase data."}
             </p>
           </div>
           <Button asChild variant="secondary">

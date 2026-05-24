@@ -12,13 +12,14 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppState } from "@/lib/app-state";
 import { todayISO } from "@/lib/date";
+import { saveAiGeneratedPlan, saveMealPlan } from "@/services/database/repository";
 import type { FoodItem, FoodLog, Meal } from "@/types";
 import { includesSearch } from "@/utils/search";
 
 const cuisines = ["all", "Egyptian", "Middle Eastern", "Mediterranean", "International"];
 
 export function MealPlanner() {
-  const { meals, setMeals, addFoodLog, foodLogs, foodItems, targets, profile } = useAppState();
+  const { meals, setMeals, mealPlans, setMealPlans, addFoodLog, foodLogs, foodItems, targets, profile } = useAppState();
   const [query, setQuery] = useState("");
   const [cuisine, setCuisine] = useState("all");
   const [budget, setBudget] = useState("all");
@@ -191,6 +192,26 @@ export function MealPlanner() {
       setAiMeals(generated.meals ?? []);
       setAiShoppingList(generated.shoppingList ?? []);
       setAiNote(generated.note ?? "");
+      const savedPlan = await saveMealPlan({
+        id: `meal-plan-${crypto.randomUUID()}`,
+        userId: profile.userId,
+        name: "Gemini Egyptian meal plan",
+        planDate: todayISO(),
+        meals: generated.meals ?? [],
+        shoppingList: generated.shoppingList ?? [],
+        note: generated.note ?? "",
+        createdAt: new Date().toISOString()
+      });
+      setMealPlans((current) => [savedPlan, ...current]);
+      void saveAiGeneratedPlan({
+        userId: profile.userId,
+        planType: "diet",
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+        prompt: "Meal plan generated from profile, macro targets, saved meals, and Egyptian food_items.",
+        response: generated,
+        validationStatus: "passed"
+      });
     } catch {
       setAiMeals(builtInSuggestedPlan);
       setAiShoppingList([]);
@@ -330,6 +351,7 @@ export function MealPlanner() {
               {generatingMeals ? "Generating meal plan..." : "Generate with Gemini"}
             </Button>
             {aiNote ? <p className="rounded-md border bg-background/60 p-3 text-sm text-muted-foreground">{aiNote}</p> : null}
+            {mealPlans.length ? <p className="text-xs text-muted-foreground">{mealPlans.length} saved meal plan{mealPlans.length === 1 ? "" : "s"} in Supabase.</p> : null}
             {suggestedPlan.map((meal) => (
               <div key={meal.id} className="flex items-center justify-between rounded-md border bg-background/60 p-3 text-sm">
                 <div>

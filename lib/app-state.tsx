@@ -10,19 +10,31 @@ import { todayISO } from "@/lib/date";
 import { shouldUseSupabase } from "@/lib/supabase";
 import { estimateTargets, generateWorkoutPlan } from "@/services/ai/workoutGenerator";
 import {
+  createScheduledWorkoutsFromPlan,
   createFoodLog,
+  deleteBodyMeasurement as deleteBodyMeasurementInDb,
   deleteFoodLog as deleteFoodLogInDb,
+  deleteMealPlan,
   deleteMeal,
+  deleteProgressEntry as deleteProgressEntryInDb,
+  deleteProgressPhoto as deleteProgressPhotoInDb,
   getActiveWorkoutPlan,
   getProfile,
+  listBodyMeasurements,
   listFoodItems,
   listFoodLogs,
+  listMealPlans,
   listMeals,
   listProgressEntries,
+  listProgressPhotos,
+  listScheduledWorkouts,
   listWeeklyCheckins,
   listWorkoutSessions,
   saveCalorieTarget,
+  saveBodyMeasurements,
   saveExerciseLogs,
+  saveMealPlan,
+  upsertScheduledWorkout,
   saveWorkoutPlan,
   updateFoodLog as updateFoodLogInDb,
   uploadProgressPhoto as uploadProgressPhotoInDb,
@@ -32,7 +44,20 @@ import {
   upsertWeeklyCheckin,
   upsertWorkoutSession
 } from "@/services/database/repository";
-import type { FoodItem, FoodLog, Meal, Profile, ProgressEntry, WeeklyCheckin, WorkoutPlan, WorkoutSession } from "@/types";
+import type {
+  BodyMeasurements,
+  FoodItem,
+  FoodLog,
+  Meal,
+  MealPlan,
+  Profile,
+  ProgressEntry,
+  ProgressPhoto,
+  ScheduledWorkout,
+  WeeklyCheckin,
+  WorkoutPlan,
+  WorkoutSession
+} from "@/types";
 
 type AppStateContextValue = {
   profile: Profile;
@@ -46,14 +71,24 @@ type AppStateContextValue = {
   deleteFoodLog: (id: string) => void;
   meals: Meal[];
   setMeals: React.Dispatch<React.SetStateAction<Meal[]>>;
+  mealPlans: MealPlan[];
+  setMealPlans: React.Dispatch<React.SetStateAction<MealPlan[]>>;
   foodItems: FoodItem[];
+  scheduledWorkouts: ScheduledWorkout[];
+  setScheduledWorkouts: React.Dispatch<React.SetStateAction<ScheduledWorkout[]>>;
   progress: ProgressEntry[];
   setProgress: React.Dispatch<React.SetStateAction<ProgressEntry[]>>;
+  deleteProgressEntry: (id: string) => void;
   checkins: WeeklyCheckin[];
   setCheckins: React.Dispatch<React.SetStateAction<WeeklyCheckin[]>>;
   sessions: WorkoutSession[];
   setSessions: React.Dispatch<React.SetStateAction<WorkoutSession[]>>;
+  progressPhotos: ProgressPhoto[];
   uploadProgressPhoto: (file: File, label?: string) => Promise<{ path: string; url: string }>;
+  deleteProgressPhoto: (photo: { id?: string; storagePath?: string; progressEntryId?: string; weeklyCheckinId?: string }) => Promise<void>;
+  bodyMeasurements: BodyMeasurements[];
+  saveBodyMeasurement: (measurement: BodyMeasurements) => Promise<BodyMeasurements>;
+  deleteBodyMeasurement: (id: string) => Promise<void>;
   refreshAppData: () => Promise<void>;
   dataMode: "supabase" | "mock";
   hydrated: boolean;
@@ -106,7 +141,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
   const [mockFoodLogs, setMockFoodLogs, logsHydrated] = useLocalStorage<FoodLog[]>("nilefit:food-logs", demoFoodLogs);
   const [mockMeals, setMockMeals, mealsHydrated] = useLocalStorage<Meal[]>("nilefit:meals", seedMeals);
+  const [mockMealPlans, setMockMealPlans, mealPlansHydrated] = useLocalStorage<MealPlan[]>("nilefit:meal-plans", []);
+  const [mockScheduledWorkouts, setMockScheduledWorkouts, scheduledHydrated] = useLocalStorage<ScheduledWorkout[]>("nilefit:scheduled-workouts", []);
   const [mockProgress, setMockProgress, progressHydrated] = useLocalStorage<ProgressEntry[]>("nilefit:progress", demoProgress);
+  const [mockProgressPhotos, setMockProgressPhotos, photosHydrated] = useLocalStorage<ProgressPhoto[]>("nilefit:progress-photos", []);
+  const [mockBodyMeasurements, setMockBodyMeasurements, measurementsHydrated] = useLocalStorage<BodyMeasurements[]>("nilefit:body-measurements", []);
   const [mockCheckins, setMockCheckins, checkinsHydrated] = useLocalStorage<WeeklyCheckin[]>("nilefit:checkins", demoCheckins);
   const [mockSessions, setMockSessions, sessionsHydrated] = useLocalStorage<WorkoutSession[]>("nilefit:sessions", []);
 
@@ -114,8 +153,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [workoutPlanState, setWorkoutPlanState] = useState<WorkoutPlan>(emptyWorkoutPlan(profileForUser(user?.id)));
   const [foodLogsState, setFoodLogsState] = useState<FoodLog[]>([]);
   const [mealsState, setMealsState] = useState<Meal[]>([]);
+  const [mealPlansState, setMealPlansState] = useState<MealPlan[]>([]);
   const [foodItemsState, setFoodItemsState] = useState<FoodItem[]>([]);
+  const [scheduledWorkoutsState, setScheduledWorkoutsState] = useState<ScheduledWorkout[]>([]);
   const [progressState, setProgressState] = useState<ProgressEntry[]>([]);
+  const [progressPhotosState, setProgressPhotosState] = useState<ProgressPhoto[]>([]);
+  const [bodyMeasurementsState, setBodyMeasurementsState] = useState<BodyMeasurements[]>([]);
   const [checkinsState, setCheckinsState] = useState<WeeklyCheckin[]>([]);
   const [sessionsState, setSessionsState] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(false);
@@ -124,7 +167,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const activePlan = realMode ? workoutPlanState : mockWorkoutPlan;
   const activeFoodLogs = realMode ? foodLogsState : mockFoodLogs;
   const activeMeals = realMode ? mealsState : mockMeals;
+  const activeMealPlans = realMode ? mealPlansState : mockMealPlans;
+  const activeScheduledWorkouts = realMode ? scheduledWorkoutsState : mockScheduledWorkouts;
   const activeProgress = realMode ? progressState : mockProgress;
+  const activeProgressPhotos = realMode ? progressPhotosState : mockProgressPhotos;
+  const activeBodyMeasurements = realMode ? bodyMeasurementsState : mockBodyMeasurements;
   const activeCheckins = realMode ? checkinsState : mockCheckins;
   const activeSessions = realMode ? sessionsState : mockSessions;
 
@@ -138,8 +185,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         dbWorkoutPlan,
         dbFoodLogs,
         dbMeals,
+        dbMealPlans,
         dbFoodItems,
+        dbScheduledWorkouts,
         dbProgress,
+        dbProgressPhotos,
+        dbBodyMeasurements,
         dbCheckins,
         dbSessions
       ] = await Promise.all([
@@ -147,8 +198,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         getActiveWorkoutPlan(user.id),
         listFoodLogs(user.id),
         listMeals(),
+        listMealPlans(user.id),
         listFoodItems({ cuisine: "Egyptian" }),
+        listScheduledWorkouts(user.id),
         listProgressEntries(user.id),
+        listProgressPhotos(user.id),
+        listBodyMeasurements(user.id),
         listWeeklyCheckins(user.id),
         listWorkoutSessions(user.id)
       ]);
@@ -158,8 +213,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setWorkoutPlanState(dbWorkoutPlan ?? emptyWorkoutPlan(nextProfile));
       setFoodLogsState(dbFoodLogs);
       setMealsState(dbMeals);
+      setMealPlansState(dbMealPlans);
       setFoodItemsState(dbFoodItems);
+      setScheduledWorkoutsState(dbScheduledWorkouts);
       setProgressState(dbProgress);
+      setProgressPhotosState(dbProgressPhotos);
+      setBodyMeasurementsState(dbBodyMeasurements);
       setCheckinsState(dbCheckins);
       setSessionsState(dbSessions);
     } finally {
@@ -204,7 +263,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       const next = applyUpdate(action, activePlan);
       setWorkoutPlanState(next);
-      void saveWorkoutPlan(next).then(setWorkoutPlanState);
+      void saveWorkoutPlan(next).then((saved) => {
+        setWorkoutPlanState(saved);
+        void createScheduledWorkoutsFromPlan(saved).then(setScheduledWorkoutsState);
+      });
     },
     [activePlan, realMode, setMockWorkoutPlan]
   );
@@ -280,6 +342,47 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [activeMeals, realMode, setMockMeals, user?.id]
   );
 
+  const setMealPlans: React.Dispatch<React.SetStateAction<MealPlan[]>> = useCallback(
+    (action) => {
+      if (!realMode) {
+        setMockMealPlans(action);
+        return;
+      }
+
+      const next = applyUpdate(action, activeMealPlans);
+      const previousIds = new Set(activeMealPlans.map((plan) => plan.id));
+      const nextIds = new Set(next.map((plan) => plan.id));
+      setMealPlansState(next);
+      next.forEach((plan) => {
+        void saveMealPlan(plan).then((saved) => {
+          setMealPlansState((current) => current.map((item) => (item.id === plan.id ? saved : item)));
+        });
+      });
+      previousIds.forEach((id) => {
+        if (!nextIds.has(id)) void deleteMealPlan(id);
+      });
+    },
+    [activeMealPlans, realMode, setMockMealPlans]
+  );
+
+  const setScheduledWorkouts: React.Dispatch<React.SetStateAction<ScheduledWorkout[]>> = useCallback(
+    (action) => {
+      if (!realMode) {
+        setMockScheduledWorkouts(action);
+        return;
+      }
+
+      const next = applyUpdate(action, activeScheduledWorkouts);
+      setScheduledWorkoutsState(next);
+      next.forEach((item) => {
+        void upsertScheduledWorkout(item).then((saved) => {
+          setScheduledWorkoutsState((current) => current.map((workout) => (workout.id === item.id ? saved : workout)));
+        });
+      });
+    },
+    [activeScheduledWorkouts, realMode, setMockScheduledWorkouts]
+  );
+
   const setProgress: React.Dispatch<React.SetStateAction<ProgressEntry[]>> = useCallback(
     (action) => {
       if (!realMode) {
@@ -289,14 +392,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       const next = applyUpdate(action, activeProgress);
       const previousIds = new Set(activeProgress.map((entry) => entry.id));
+      const nextIds = new Set(next.map((entry) => entry.id));
       setProgressState(next);
-      next.filter((entry) => !previousIds.has(entry.id)).forEach((entry) => {
+      next.forEach((entry) => {
         void upsertProgressEntry(entry).then((saved) => {
           setProgressState((current) => current.map((item) => (item.id === entry.id ? saved : item)));
         });
       });
+      previousIds.forEach((id) => {
+        if (!nextIds.has(id)) void deleteProgressEntryInDb(id);
+      });
     },
     [activeProgress, realMode, setMockProgress]
+  );
+
+  const deleteProgressEntry = useCallback(
+    (id: string) => {
+      if (!realMode) {
+        setMockProgress((current) => current.filter((entry) => entry.id !== id));
+        return;
+      }
+
+      setProgressState((current) => current.filter((entry) => entry.id !== id));
+      void deleteProgressEntryInDb(id);
+    },
+    [realMode, setMockProgress]
   );
 
   const setCheckins: React.Dispatch<React.SetStateAction<WeeklyCheckin[]>> = useCallback(
@@ -344,10 +464,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               completed: set.completed
             }))
           );
+          if (saved.scheduledWorkoutId) {
+            const scheduled = activeScheduledWorkouts.find((item) => item.id === saved.scheduledWorkoutId);
+            if (scheduled) {
+              const completedSchedule: ScheduledWorkout = { ...scheduled, status: "completed" };
+              setScheduledWorkoutsState((current) => current.map((item) => (item.id === completedSchedule.id ? completedSchedule : item)));
+              void upsertScheduledWorkout(completedSchedule);
+            }
+          }
         });
       });
     },
-    [activeSessions, realMode, setMockSessions]
+    [activeScheduledWorkouts, activeSessions, realMode, setMockSessions]
   );
 
   const uploadProgressPhoto = useCallback(
@@ -358,6 +486,72 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       return uploadProgressPhotoInDb(user?.id ?? activeProfile.userId, file, label);
     },
     [activeProfile.userId, realMode, user?.id]
+  );
+
+  const deleteProgressPhoto = useCallback(
+    async (photo: { id?: string; storagePath?: string; progressEntryId?: string; weeklyCheckinId?: string }) => {
+      if (!realMode) {
+        setMockProgressPhotos((current) => current.filter((item) => item.id !== photo.id && item.storagePath !== photo.storagePath));
+        setMockProgress((current) =>
+          current.map((entry) =>
+            entry.id === photo.progressEntryId || entry.photoPath === photo.storagePath ? { ...entry, photoPath: undefined, photoUrl: undefined } : entry
+          )
+        );
+        setMockCheckins((current) =>
+          current.map((checkin) =>
+            checkin.id === photo.weeklyCheckinId || checkin.photoPath === photo.storagePath ? { ...checkin, photoPath: undefined, photoUrl: undefined } : checkin
+          )
+        );
+        return;
+      }
+
+      setProgressPhotosState((current) => current.filter((item) => item.id !== photo.id && item.storagePath !== photo.storagePath));
+      setProgressState((current) =>
+        current.map((entry) =>
+          entry.id === photo.progressEntryId || entry.photoPath === photo.storagePath ? { ...entry, photoPath: undefined, photoUrl: undefined } : entry
+        )
+      );
+      setCheckinsState((current) =>
+        current.map((checkin) =>
+          checkin.id === photo.weeklyCheckinId || checkin.photoPath === photo.storagePath ? { ...checkin, photoPath: undefined, photoUrl: undefined } : checkin
+        )
+      );
+      await deleteProgressPhotoInDb(photo);
+    },
+    [realMode, setMockCheckins, setMockProgress, setMockProgressPhotos]
+  );
+
+  const saveBodyMeasurement = useCallback(
+    async (measurement: BodyMeasurements) => {
+      if (!realMode) {
+        setMockBodyMeasurements((current) => {
+          const exists = current.some((item) => item.id === measurement.id);
+          return exists ? current.map((item) => (item.id === measurement.id ? measurement : item)) : [...current, measurement];
+        });
+        return measurement;
+      }
+
+      setBodyMeasurementsState((current) => {
+        const exists = current.some((item) => item.id === measurement.id);
+        return exists ? current.map((item) => (item.id === measurement.id ? measurement : item)) : [...current, measurement];
+      });
+      const saved = await saveBodyMeasurements(measurement);
+      setBodyMeasurementsState((current) => current.map((item) => (item.id === measurement.id ? saved : item)));
+      return saved;
+    },
+    [realMode, setMockBodyMeasurements]
+  );
+
+  const deleteBodyMeasurement = useCallback(
+    async (id: string) => {
+      if (!realMode) {
+        setMockBodyMeasurements((current) => current.filter((item) => item.id !== id));
+        return;
+      }
+      setBodyMeasurementsState((current) => current.filter((item) => item.id !== id));
+      await deleteBodyMeasurementInDb(id);
+    },
+    [realMode, setMockBodyMeasurements]
   );
 
   const value = useMemo<AppStateContextValue>(
@@ -373,14 +567,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       deleteFoodLog,
       meals: activeMeals,
       setMeals,
+      mealPlans: activeMealPlans,
+      setMealPlans,
       foodItems: foodItemsState,
+      scheduledWorkouts: activeScheduledWorkouts,
+      setScheduledWorkouts,
       progress: activeProgress,
       setProgress,
+      deleteProgressEntry,
       checkins: activeCheckins,
       setCheckins,
       sessions: activeSessions,
       setSessions,
+      progressPhotos: activeProgressPhotos,
       uploadProgressPhoto,
+      deleteProgressPhoto,
+      bodyMeasurements: activeBodyMeasurements,
+      saveBodyMeasurement,
+      deleteBodyMeasurement,
       refreshAppData,
       dataMode: realMode ? "supabase" : "mock",
       hydrated: realMode
@@ -389,34 +593,52 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           planHydrated &&
           logsHydrated &&
           mealsHydrated &&
+          mealPlansHydrated &&
+          scheduledHydrated &&
           progressHydrated &&
+          photosHydrated &&
+          measurementsHydrated &&
           checkinsHydrated &&
           sessionsHydrated
     }),
     [
       activeCheckins,
       activeFoodLogs,
+      activeMealPlans,
       activeMeals,
       activePlan,
       activeProfile,
+      activeBodyMeasurements,
+      activeProgressPhotos,
       activeProgress,
+      activeScheduledWorkouts,
       activeSessions,
       addFoodLog,
       checkinsHydrated,
+      deleteBodyMeasurement,
       deleteFoodLog,
+      deleteProgressEntry,
+      deleteProgressPhoto,
       foodItemsState,
       logsHydrated,
+      mealPlansHydrated,
       mealsHydrated,
+      measurementsHydrated,
       planHydrated,
+      photosHydrated,
       profileHydrated,
       progressHydrated,
       realMode,
       refreshAppData,
+      saveBodyMeasurement,
+      scheduledHydrated,
       sessionsHydrated,
       setCheckins,
+      setMealPlans,
       setMeals,
       setProfile,
       setProgress,
+      setScheduledWorkouts,
       setSessions,
       setWorkoutPlan,
       updateFoodLog,

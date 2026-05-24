@@ -15,14 +15,17 @@ import { getTodayWorkout, shortenWorkout } from "@/services/ai/workoutGenerator"
 import type { WorkoutSetLog } from "@/types";
 
 export function TodayWorkout() {
-  const { workoutPlan, sessions, setSessions, profile } = useAppState();
-  const baseWorkout = getTodayWorkout(workoutPlan);
+  const { workoutPlan, sessions, setSessions, profile, scheduledWorkouts, setScheduledWorkouts } = useAppState();
+  const today = todayISO();
+  const todaySchedule = scheduledWorkouts.find((item) => item.scheduledDate === today && item.status !== "rest");
+  const baseWorkout = todaySchedule
+    ? workoutPlan.days.find((day) => day.id === todaySchedule.workoutDayId) ?? getTodayWorkout(workoutPlan)
+    : getTodayWorkout(workoutPlan);
   const [shortMode, setShortMode] = useState(false);
   const workout = baseWorkout && shortMode ? shortenWorkout(baseWorkout) : baseWorkout;
   const [logs, setLogs] = useState<Record<string, WorkoutSetLog>>({});
   const [difficulty, setDifficulty] = useState("3");
   const [notes, setNotes] = useState("");
-  const today = todayISO();
 
   const completedCount = useMemo(() => Object.values(logs).filter((log) => log.completed).length, [logs]);
 
@@ -71,6 +74,7 @@ export function TodayWorkout() {
         id: `session-${crypto.randomUUID()}`,
         userId: profile.userId,
         workoutDayId: activeWorkout.id,
+        scheduledWorkoutId: todaySchedule?.id,
         date: today,
         difficultyRating: Number(difficulty),
         notes,
@@ -78,6 +82,9 @@ export function TodayWorkout() {
       },
       ...current
     ]);
+    if (todaySchedule) {
+      setScheduledWorkouts((current) => current.map((item) => (item.id === todaySchedule.id ? { ...item, status: "completed" } : item)));
+    }
   }
 
   return (

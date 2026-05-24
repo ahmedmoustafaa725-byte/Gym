@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminGuard } from "@/components/admin/admin-guard";
 import { ResourceManager } from "@/components/admin/resource-manager";
 import { aiPromptTemplates } from "@/data/ai-prompts";
@@ -8,18 +8,20 @@ import { demoUser } from "@/data/demo";
 import { exercises } from "@/data/exercises";
 import { defaultProfile } from "@/data/onboarding";
 import { useAppState } from "@/lib/app-state";
-import { deleteExercise, listAdminSettings, listExercises, listUsers, upsertAdminSetting, upsertExercise, upsertUserRow } from "@/services/database/repository";
+import {
+  deleteExercise,
+  deleteWorkoutTemplate,
+  listAdminSettings,
+  listExercises,
+  listUsers,
+  listWorkoutTemplates,
+  upsertAdminSetting,
+  upsertExercise,
+  upsertUserRow,
+  upsertWorkoutTemplate
+} from "@/services/database/repository";
 import { generateWorkoutPlan } from "@/services/ai/workoutGenerator";
-import type { AdminSetting, Exercise, Meal, User, WorkoutPlan } from "@/types";
-
-type TemplateRow = {
-  id: string;
-  name: string;
-  goal: string;
-  daysPerWeek: number;
-  split: string;
-  template: WorkoutPlan;
-};
+import type { AdminSetting, Exercise, Meal, User, WorkoutTemplate } from "@/types";
 
 export function ManageExercises() {
   const [rows, setRows] = useState<Exercise[]>(exercises);
@@ -149,10 +151,10 @@ export function ManageUsers() {
 }
 
 export function ManageWorkoutTemplates() {
-  const defaultPlan = generateWorkoutPlan(defaultProfile);
-  const [rows, setRows] = useState<TemplateRow[]>([
+  const defaultPlan = useMemo(() => generateWorkoutPlan(defaultProfile), []);
+  const [rows, setRows] = useState<WorkoutTemplate[]>([
     {
-      id: "template-full-body",
+      id: "00000000-0000-4000-8000-000000000101",
       name: "Beginner Full Body",
       goal: "general_fitness",
       daysPerWeek: 3,
@@ -160,13 +162,42 @@ export function ManageWorkoutTemplates() {
       template: defaultPlan
     }
   ]);
+  useEffect(() => {
+    void listWorkoutTemplates().then((templates) =>
+      setRows(
+        templates.length
+          ? templates
+          : [
+              {
+                id: "00000000-0000-4000-8000-000000000101",
+                name: "Beginner Full Body",
+                goal: "general_fitness",
+                daysPerWeek: 3,
+                split: "Full body",
+                template: defaultPlan
+              }
+            ]
+      )
+    );
+  }, [defaultPlan]);
+  const persistRows = useCallback<React.Dispatch<React.SetStateAction<WorkoutTemplate[]>>>((action) => {
+    setRows((current) => {
+      const next = typeof action === "function" ? (action as (previous: WorkoutTemplate[]) => WorkoutTemplate[])(current) : action;
+      const nextIds = new Set(next.map((item) => item.id));
+      next.forEach((item) => void upsertWorkoutTemplate(item));
+      current.forEach((item) => {
+        if (!nextIds.has(item.id)) void deleteWorkoutTemplate(item.id);
+      });
+      return next;
+    });
+  }, []);
   return (
     <AdminGuard>
       <ResourceManager
         title="Workout Templates"
         description="Manage reusable templates that the generator can select before personalizing."
         rows={rows}
-        setRows={setRows}
+        setRows={persistRows}
         columns={[
           { key: "name", label: "Name" },
           { key: "goal", label: "Goal" },
@@ -174,13 +205,13 @@ export function ManageWorkoutTemplates() {
           { key: "split", label: "Split" }
         ]}
         createItem={() => ({
-          id: `template-${crypto.randomUUID()}`,
+          id: crypto.randomUUID(),
           name: "New Template",
           goal: "fat_loss",
           daysPerWeek: 4,
           split: "Upper/lower",
           template: defaultPlan
-        })}
+        } satisfies WorkoutTemplate)}
       />
     </AdminGuard>
   );
