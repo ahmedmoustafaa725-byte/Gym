@@ -71,9 +71,9 @@ create table if not exists public.calorie_targets (
 );
 
 -- Exercise catalogue (global + user-created)
-create table if not exists public.exercise_library (
+create table if not exists public.user_exercise_items (
   id uuid primary key default gen_random_uuid(),
-  owner_user_id uuid references public.users(id) on delete cascade,
+  created_by uuid references public.users(id) on delete set null,
   is_global boolean not null default true,
   name text not null,
   muscle_group text,
@@ -82,7 +82,7 @@ create table if not exists public.exercise_library (
   instructions text[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint exercise_library_owner_scope check ((is_global and owner_user_id is null) or (not is_global and owner_user_id is not null))
+  constraint user_exercise_items_owner_scope check ((is_global and created_by is null) or (not is_global and created_by is not null))
 );
 
 create table if not exists public.workout_plans (
@@ -140,7 +140,8 @@ create table if not exists public.exercise_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   workout_session_id uuid not null references public.workout_sessions(id) on delete cascade,
-  exercise_library_id uuid references public.exercise_library(id) on delete set null,
+  exercise_id text references public.exercises(id) on delete set null,
+  user_exercise_item_id uuid references public.user_exercise_items(id) on delete set null,
   exercise_name text not null,
   set_index int,
   reps int,
@@ -162,7 +163,7 @@ create table if not exists public.meal_plans (
 );
 
 create table if not exists public.meals (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   meal_plan_id uuid references public.meal_plans(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   meal_name text not null,
@@ -176,7 +177,7 @@ create table if not exists public.meals (
 -- Food catalogue (global + user-created split)
 create table if not exists public.food_items (
   id uuid primary key default gen_random_uuid(),
-  owner_user_id uuid references public.users(id) on delete cascade,
+  created_by uuid references public.users(id) on delete set null,
   is_global boolean not null default true,
   food_name text not null,
   serving_size text not null,
@@ -187,7 +188,7 @@ create table if not exists public.food_items (
   fiber_g numeric,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint food_items_owner_scope check ((is_global and owner_user_id is null) or (not is_global and owner_user_id is not null))
+  constraint food_items_owner_scope check ((is_global and created_by is null) or (not is_global and created_by is not null))
 );
 
 create table if not exists public.user_food_items (
@@ -202,7 +203,7 @@ create table if not exists public.user_food_items (
 
 create table if not exists public.meal_food_items (
   id uuid primary key default gen_random_uuid(),
-  meal_id uuid not null references public.meals(id) on delete cascade,
+  meal_id text not null references public.meals(id) on delete cascade,
   food_item_id uuid not null references public.food_items(id) on delete restrict,
   quantity numeric not null default 1 check (quantity > 0),
   created_at timestamptz not null default now(),
@@ -212,7 +213,7 @@ create table if not exists public.meal_food_items (
 create table if not exists public.food_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  meal_id uuid references public.meals(id) on delete set null,
+  meal_id text references public.meals(id) on delete set null,
   food_item_id uuid references public.food_items(id) on delete set null,
   log_date date not null default current_date,
   meal_name text not null,

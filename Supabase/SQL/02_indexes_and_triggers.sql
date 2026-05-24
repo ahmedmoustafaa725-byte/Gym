@@ -2,8 +2,8 @@
 create index if not exists idx_profiles_user_id on public.profiles(user_id);
 create index if not exists idx_onboarding_answers_user_id on public.onboarding_answers(user_id);
 create index if not exists idx_calorie_targets_user_date on public.calorie_targets(user_id, starts_on desc);
-create index if not exists idx_exercise_library_global on public.exercise_library(is_global);
-create index if not exists idx_exercise_library_owner on public.exercise_library(owner_user_id);
+create index if not exists idx_exercises_lookup on public.exercises(muscle_group, difficulty);
+create index if not exists idx_user_exercise_items_owner on public.user_exercise_items(created_by);
 create index if not exists idx_workout_plans_user on public.workout_plans(user_id);
 create index if not exists idx_workouts_plan on public.workouts(workout_plan_id);
 create index if not exists idx_scheduled_workouts_user_date on public.scheduled_workouts(user_id, scheduled_date);
@@ -12,7 +12,7 @@ create index if not exists idx_exercise_logs_session on public.exercise_logs(wor
 create index if not exists idx_meal_plans_user_date on public.meal_plans(user_id, plan_date desc);
 create index if not exists idx_meals_user on public.meals(user_id);
 create index if not exists idx_food_items_global on public.food_items(is_global);
-create index if not exists idx_food_items_owner on public.food_items(owner_user_id);
+create index if not exists idx_food_items_owner on public.food_items(created_by);
 create index if not exists idx_food_items_search on public.food_items using gin(to_tsvector('simple', food_name || ' ' || serving_size));
 create index if not exists idx_user_food_items_user on public.user_food_items(user_id);
 create index if not exists idx_meal_food_items_meal on public.meal_food_items(meal_id);
@@ -31,7 +31,7 @@ DECLARE
   t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'users','profiles','onboarding_answers','calorie_targets','exercise_library','workout_plans','workouts',
+    'users','profiles','onboarding_answers','calorie_targets','user_exercise_items','workout_plans','workouts',
     'scheduled_workouts','workout_sessions','exercise_logs','meal_plans','meals','food_items','user_food_items',
     'meal_food_items','food_logs','progress_entries','weekly_checkins','progress_photos','body_measurements',
     'nutrition_reference_targets','daily_nutrition_recommendations','chat_messages','ai_generated_plans','admin_settings'

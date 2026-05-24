@@ -17,7 +17,7 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'users','profiles','onboarding_answers','calorie_targets','exercise_library','workout_plans','workouts',
+    'users','profiles','onboarding_answers','calorie_targets','user_exercise_items','workout_plans','workouts',
     'scheduled_workouts','workout_sessions','exercise_logs','meal_plans','meals','food_items','user_food_items',
     'meal_food_items','food_logs','progress_entries','weekly_checkins','progress_photos','body_measurements',
     'nutrition_reference_targets','daily_nutrition_recommendations','chat_messages','ai_generated_plans','admin_settings'
@@ -44,11 +44,12 @@ create policy calorie_targets_private on public.calorie_targets for all
   with check (user_id = auth.uid() or public.is_admin());
 
 -- Public/global exercise items can be read by authenticated users.
-create policy exercise_library_read on public.exercise_library for select
-  using (auth.role() = 'authenticated' and (is_global = true or owner_user_id = auth.uid() or public.is_admin()));
-create policy exercise_library_write on public.exercise_library for all
-  using (owner_user_id = auth.uid() or public.is_admin())
-  with check ((owner_user_id = auth.uid() and is_global = false) or public.is_admin());
+create policy exercises_global_read on public.exercises for select
+  using (auth.role() = 'authenticated');
+
+create policy user_exercise_items_private on public.user_exercise_items for all
+  using (created_by = auth.uid() or public.is_admin())
+  with check (created_by = auth.uid() or public.is_admin());
 
 create policy workout_plans_private on public.workout_plans for all
   using (user_id = auth.uid() or public.is_admin())
@@ -78,10 +79,10 @@ create policy meal_food_items_private on public.meal_food_items for all
 
 -- Public/global food items readable; user-created foods isolated.
 create policy food_items_read on public.food_items for select
-  using (auth.role() = 'authenticated' and (is_global = true or owner_user_id = auth.uid() or public.is_admin()));
+  using (auth.role() = 'authenticated' and (is_global = true or created_by = auth.uid() or public.is_admin()));
 create policy food_items_write on public.food_items for all
-  using (owner_user_id = auth.uid() or public.is_admin())
-  with check ((owner_user_id = auth.uid() and is_global = false) or public.is_admin());
+  using (created_by = auth.uid() or public.is_admin())
+  with check ((created_by = auth.uid() and is_global = false) or public.is_admin());
 
 create policy user_food_items_private on public.user_food_items for all
   using (user_id = auth.uid() or public.is_admin())
