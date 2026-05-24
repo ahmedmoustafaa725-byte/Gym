@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminGuard } from "@/components/admin/admin-guard";
 import { ResourceManager } from "@/components/admin/resource-manager";
 import { aiPromptTemplates } from "@/data/ai-prompts";
@@ -8,6 +8,7 @@ import { demoUser } from "@/data/demo";
 import { exercises } from "@/data/exercises";
 import { defaultProfile } from "@/data/onboarding";
 import { useAppState } from "@/lib/app-state";
+import { deleteExercise, listAdminSettings, listExercises, listUsers, upsertAdminSetting, upsertExercise, upsertUserRow } from "@/services/database/repository";
 import { generateWorkoutPlan } from "@/services/ai/workoutGenerator";
 import type { AdminSetting, Exercise, Meal, User, WorkoutPlan } from "@/types";
 
@@ -22,13 +23,27 @@ type TemplateRow = {
 
 export function ManageExercises() {
   const [rows, setRows] = useState<Exercise[]>(exercises);
+  useEffect(() => {
+    void listExercises().then(setRows);
+  }, []);
+  const persistRows = useCallback<React.Dispatch<React.SetStateAction<Exercise[]>>>((action) => {
+    setRows((current) => {
+      const next = typeof action === "function" ? (action as (previous: Exercise[]) => Exercise[])(current) : action;
+      const nextIds = new Set(next.map((item) => item.id));
+      next.forEach((item) => void upsertExercise(item));
+      current.forEach((item) => {
+        if (!nextIds.has(item.id)) void deleteExercise(item.id);
+      });
+      return next;
+    });
+  }, []);
   return (
     <AdminGuard>
       <ResourceManager
         title="Exercises"
         description="Manage exercise names, muscles, equipment, difficulty, instructions, mistakes, alternatives, and video metadata."
         rows={rows}
-        setRows={setRows}
+        setRows={persistRows}
         columns={[
           { key: "name", label: "Name" },
           { key: "muscleGroup", label: "Muscle" },
@@ -95,17 +110,26 @@ export function ManageMeals() {
 }
 
 export function ManageUsers() {
-  const [rows, setRows] = useState<User[]>([
-    demoUser,
-    { id: "user-2", email: "athlete@nilefit.app", name: "Free Athlete", role: "user", onboardingComplete: true }
-  ]);
+  const [rows, setRows] = useState<User[]>([demoUser]);
+  useEffect(() => {
+    void listUsers().then((users) => setRows(users.length ? users : [demoUser]));
+  }, []);
+  const persistRows = useCallback<React.Dispatch<React.SetStateAction<User[]>>>((action) => {
+    setRows((current) => {
+      const next = typeof action === "function" ? (action as (previous: User[]) => User[])(current) : action;
+      next.forEach((item) => {
+        if (item.id) void upsertUserRow(item);
+      });
+      return next;
+    });
+  }, []);
   return (
     <AdminGuard>
       <ResourceManager
         title="Users"
         description="Manage user overview and roles. Supabase RLS protects user-owned data."
         rows={rows}
-        setRows={setRows}
+        setRows={persistRows}
         columns={[
           { key: "name", label: "Name" },
           { key: "email", label: "Email" },
@@ -113,7 +137,7 @@ export function ManageUsers() {
           { key: "onboardingComplete", label: "Onboarded" }
         ]}
         createItem={() => ({
-          id: `user-${crypto.randomUUID()}`,
+          id: crypto.randomUUID(),
           name: "New User",
           email: "new@nilefit.app",
           role: "user",
@@ -164,13 +188,23 @@ export function ManageWorkoutTemplates() {
 
 export function ManageAIPrompts() {
   const [rows, setRows] = useState<AdminSetting[]>(aiPromptTemplates);
+  useEffect(() => {
+    void listAdminSettings().then((settings) => setRows(settings.length ? settings : aiPromptTemplates));
+  }, []);
+  const persistRows = useCallback<React.Dispatch<React.SetStateAction<AdminSetting[]>>>((action) => {
+    setRows((current) => {
+      const next = typeof action === "function" ? (action as (previous: AdminSetting[]) => AdminSetting[])(current) : action;
+      next.forEach((item) => void upsertAdminSetting(item));
+      return next;
+    });
+  }, []);
   return (
     <AdminGuard>
       <ResourceManager
         title="AI Prompts"
         description="Manage system prompts for parser, workout generator, check-ins, and future AI personalization."
         rows={rows}
-        setRows={setRows}
+        setRows={persistRows}
         columns={[
           { key: "key", label: "Key" },
           { key: "category", label: "Category" },
