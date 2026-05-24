@@ -44,12 +44,12 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 GEMINI_API_KEY=your_google_ai_studio_key
 AI_PROVIDER=gemini
-AI_MODEL=gemini-3.5-flash
+AI_MODEL=gemini-2.5-flash
 NEXT_PUBLIC_APP_URL=https://your-site.netlify.app
 NEXT_PUBLIC_USE_MOCK_AUTH=false
 ```
 
-Do not put `GEMINI_API_KEY` in browser/client code. It is used only by server API routes.
+Do not put `GEMINI_API_KEY` in browser/client code. It is used only by server API routes. The default model is `gemini-2.5-flash`, which is listed in the Gemini API model docs.
 
 ### 4. Netlify Build Settings
 
