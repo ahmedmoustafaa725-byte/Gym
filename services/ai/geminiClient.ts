@@ -24,7 +24,7 @@ export function isGeminiEnabled() {
 
 export async function generateGeminiJSON<T>(prompt: string, fallback: T, options: GeminiOptions = {}): Promise<T> {
   const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.AI_MODEL || "gemini-3.5-flash";
+  const model = process.env.AI_MODEL || "gemini-2.5-flash";
 
   if (!apiKey || process.env.AI_PROVIDER !== "gemini") {
     return fallback;
