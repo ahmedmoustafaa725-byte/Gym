@@ -14,6 +14,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading && !user) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    if (!loading && user && !user.onboardingComplete && pathname !== "/onboarding") {
+      router.replace("/onboarding");
     }
   }, [loading, pathname, router, user]);
 
