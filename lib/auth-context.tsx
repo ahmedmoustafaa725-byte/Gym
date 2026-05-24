@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import type { User as SupabaseAuthUser } from "@supabase/supabase-js";
+import { isMockMode, shouldUseSupabase, supabase } from "@/lib/supabase";
 import type { Role, User } from "@/types";
 
 type AuthContextValue = {
@@ -24,6 +25,35 @@ function roleFromEmail(email: string): Role {
   return normalized.includes("admin") || adminEmails.includes(normalized) ? "admin" : "user";
 }
 
+async function userFromSupabaseAuth(sessionUser: SupabaseAuthUser): Promise<User> {
+  const email = sessionUser.email ?? "";
+  let role = roleFromEmail(email) === "admin" ? "admin" : ((sessionUser.user_metadata.role as Role | undefined) ?? "user");
+  let onboardingComplete = Boolean(sessionUser.user_metadata.onboardingComplete);
+  let name = sessionUser.user_metadata.name ?? email.split("@")[0] ?? "Athlete";
+
+  if (supabase) {
+    const { data } = await supabase
+      .from("users")
+      .select("name, role, onboarding_complete")
+      .eq("id", sessionUser.id)
+      .maybeSingle();
+
+    if (data) {
+      name = data.name ?? name;
+      role = roleFromEmail(email) === "admin" ? "admin" : ((data.role as Role | null) ?? role);
+      onboardingComplete = Boolean(data.onboarding_complete);
+    }
+  }
+
+  return {
+    id: sessionUser.id,
+    email,
+    name,
+    role,
+    onboardingComplete
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,19 +63,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
 
     async function hydrate() {
-      if (isSupabaseConfigured && supabase) {
+      if (shouldUseSupabase && supabase) {
         const { data } = await supabase.auth.getSession();
         const sessionUser = data.session?.user;
         if (active && sessionUser) {
-          setUser({
-            id: sessionUser.id,
-            email: sessionUser.email ?? "",
-            name: sessionUser.user_metadata.name ?? sessionUser.email?.split("@")[0] ?? "Athlete",
-            role: roleFromEmail(sessionUser.email ?? "") === "admin" ? "admin" : (sessionUser.user_metadata.role as Role) ?? "user",
-            onboardingComplete: Boolean(sessionUser.user_metadata.onboardingComplete)
-          });
+          setUser(await userFromSupabaseAuth(sessionUser));
         }
-      } else {
+      } else if (isMockMode) {
         const stored = window.localStorage.getItem(storageKey);
         setUser(stored ? (JSON.parse(stored) as User) : null);
       }
@@ -60,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured && user) {
+    if (isMockMode && user) {
       window.localStorage.setItem(storageKey, JSON.stringify(user));
     }
   }, [user]);
@@ -71,17 +95,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       setUser,
       async signIn(email: string, password: string) {
-        if (isSupabaseConfigured && supabase) {
+        if (shouldUseSupabase && supabase) {
           const { data, error } = await supabase.auth.signInWithPassword({ email, password });
           if (error) throw error;
           const sessionUser = data.user;
-          setUser({
-            id: sessionUser.id,
-            email: sessionUser.email ?? email,
-            name: sessionUser.user_metadata.name ?? email.split("@")[0],
-            role: roleFromEmail(sessionUser.email ?? email) === "admin" ? "admin" : (sessionUser.user_metadata.role as Role) ?? "user",
-            onboardingComplete: Boolean(sessionUser.user_metadata.onboardingComplete)
-          });
+          if (!sessionUser) throw new Error("No Supabase session was returned.");
+          setUser(await userFromSupabaseAuth(sessionUser));
         } else {
           setUser({
             id: `local-${email}`,
@@ -94,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/dashboard");
       },
       async signUp(name: string, email: string, password: string) {
-        if (isSupabaseConfigured && supabase) {
+        if (shouldUseSupabase && supabase) {
           const { data, error } = await supabase.auth.signUp({
             email,
             password,
@@ -102,6 +121,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           if (error) throw error;
           if (data.user) {
+            await supabase.from("users").upsert({
+              id: data.user.id,
+              email,
+              name,
+              role: roleFromEmail(email),
+              onboarding_complete: false
+            });
             setUser({
               id: data.user.id,
               email,
@@ -122,10 +148,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/onboarding");
       },
       async logout() {
-        if (isSupabaseConfigured && supabase) {
+        if (shouldUseSupabase && supabase) {
           await supabase.auth.signOut();
         }
-        window.localStorage.removeItem(storageKey);
+        if (isMockMode) {
+          window.localStorage.removeItem(storageKey);
+        }
         setUser(null);
         router.push("/");
       }
