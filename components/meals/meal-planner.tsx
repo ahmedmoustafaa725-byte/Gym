@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, ListChecks, Plus, Search, ShoppingBasket, Sparkles, Utensils } from "lucide-react";
+import { Database, Heart, ListChecks, Plus, Search, ShoppingBasket, Sparkles, Utensils } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,13 +12,13 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppState } from "@/lib/app-state";
 import { todayISO } from "@/lib/date";
-import type { Meal } from "@/types";
+import type { FoodItem, FoodLog, Meal } from "@/types";
 import { includesSearch } from "@/utils/search";
 
 const cuisines = ["all", "Egyptian", "Middle Eastern", "Mediterranean", "International"];
 
 export function MealPlanner() {
-  const { meals, setMeals, addFoodLog, targets, profile } = useAppState();
+  const { meals, setMeals, addFoodLog, foodLogs, foodItems, targets, profile } = useAppState();
   const [query, setQuery] = useState("");
   const [cuisine, setCuisine] = useState("all");
   const [budget, setBudget] = useState("all");
@@ -30,6 +30,8 @@ export function MealPlanner() {
   const [aiShoppingList, setAiShoppingList] = useState<string[]>([]);
   const [aiNote, setAiNote] = useState("");
   const [generatingMeals, setGeneratingMeals] = useState(false);
+  const [servings, setServings] = useState<Record<string, string>>({});
+  const [quickView, setQuickView] = useState<{ title: string; added: string; remaining: string } | null>(null);
   const [custom, setCustom] = useState({
     name: "",
     calories: 400,
@@ -37,8 +39,27 @@ export function MealPlanner() {
     carbs: 45,
     fat: 12,
     ingredients: "",
+    servingSize: "",
+    mealTime: "",
+    notes: "",
     cuisine: "Egyptian"
   });
+
+  const todayTotals = useMemo(
+    () =>
+      foodLogs
+        .filter((log) => log.date === todayISO())
+        .reduce(
+          (sum, log) => ({
+            calories: sum.calories + log.calories,
+            protein: sum.protein + log.protein,
+            carbs: sum.carbs + log.carbs,
+            fat: sum.fat + log.fat
+          }),
+          { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        ),
+    [foodLogs]
+  );
 
   const filteredMeals = useMemo(
     () =>
@@ -54,6 +75,14 @@ export function MealPlanner() {
     [budget, cuisine, maxCalories, maxCookingTime, meals, minProtein, query]
   );
 
+  const filteredFoodItems = useMemo(
+    () =>
+      foodItems
+        .filter((item) => includesSearch([item.foodName, item.servingSize, item.cuisine ?? "", item.category ?? "", ...(item.aliases ?? [])], query))
+        .slice(0, 12),
+    [foodItems, query]
+  );
+
   const builtInSuggestedPlan = useMemo(() => {
     const highProtein = meals.filter((meal) => meal.protein >= 25).slice(0, 3);
     const lighter = meals.filter((meal) => meal.calories <= 350).slice(0, 2);
@@ -62,25 +91,28 @@ export function MealPlanner() {
 
   const suggestedPlan = aiMeals.length ? aiMeals : builtInSuggestedPlan;
 
-  const shoppingList = useMemo(
-    () => {
-      if (aiShoppingList.length) {
-        return aiShoppingList;
-      }
+  const shoppingList = useMemo(() => {
+    if (aiShoppingList.length) return aiShoppingList;
+    return Array.from(new Set(suggestedPlan.flatMap((meal) => meal.ingredients.map((ingredient) => `${ingredient.amount} ${ingredient.name}`))));
+  }, [aiShoppingList, suggestedPlan]);
 
-      return Array.from(
-        new Set(
-          suggestedPlan.flatMap((meal) =>
-            meal.ingredients.map((ingredient) => `${ingredient.amount} ${ingredient.name}`)
-          )
-        )
-      );
-    },
-    [aiShoppingList, suggestedPlan]
-  );
+  function showQuickView(log: Omit<FoodLog, "id" | "userId" | "date">) {
+    const next = {
+      calories: todayTotals.calories + log.calories,
+      protein: todayTotals.protein + log.protein,
+      carbs: todayTotals.carbs + log.carbs,
+      fat: todayTotals.fat + log.fat
+    };
+    setQuickView({
+      title: "Meal added to today",
+      added: `+${log.calories} kcal | +${log.protein}g protein | +${log.carbs}g carbs | +${log.fat}g fat`,
+      remaining: `Remaining today: ${Math.max(0, targets.calories - next.calories)} kcal | ${Math.max(0, targets.protein - next.protein)}g protein | ${Math.max(0, targets.carbs - next.carbs)}g carbs | ${Math.max(0, targets.fat - next.fat)}g fat`
+    });
+    window.setTimeout(() => setQuickView(null), 2000);
+  }
 
-  function addMealToLog(meal: Meal) {
-    addFoodLog({
+  async function addMealToLog(meal: Meal) {
+    const log = {
       mealName: meal.name,
       source: "meal_plan",
       calories: meal.calories,
@@ -89,11 +121,33 @@ export function MealPlanner() {
       fat: meal.fat,
       notes: meal.arabicName,
       date: todayISO()
-    });
+    } satisfies Parameters<typeof addFoodLog>[0];
+    await addFoodLog(log);
+    showQuickView(log);
+  }
+
+  async function addFoodItemToLog(item: FoodItem) {
+    const quantity = Math.max(0.25, Number(servings[item.id] || 1));
+    const log = {
+      mealName: item.foodName,
+      source: "egyptian_food",
+      foodItemId: item.id,
+      servingSize: item.servingSize,
+      quantity,
+      calories: Math.round(item.calories * quantity),
+      protein: Math.round(item.proteinG * quantity),
+      carbs: Math.round(item.carbsG * quantity),
+      fat: Math.round(item.fatG * quantity),
+      notes: `${quantity} x ${item.servingSize}`,
+      date: todayISO()
+    } satisfies Parameters<typeof addFoodLog>[0];
+    await addFoodLog(log);
+    showQuickView(log);
   }
 
   function createMeal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!custom.name.trim() || custom.calories < 0 || custom.protein < 0 || custom.carbs < 0 || custom.fat < 0) return;
     const id = `custom-${crypto.randomUUID()}`;
     const meal: Meal = {
       id,
@@ -101,7 +155,7 @@ export function MealPlanner() {
       aliases: [custom.name],
       cuisine: custom.cuisine as Meal["cuisine"],
       tags: ["Custom", "Free user meal"],
-      portionSize: "1 serving",
+      portionSize: custom.servingSize || "1 serving",
       calories: Number(custom.calories),
       protein: Number(custom.protein),
       carbs: Number(custom.carbs),
@@ -117,7 +171,7 @@ export function MealPlanner() {
       cookingTimeMinutes: 20
     };
     setMeals((current) => [meal, ...current]);
-    setCustom({ name: "", calories: 400, protein: 30, carbs: 45, fat: 12, ingredients: "", cuisine: "Egyptian" });
+    setCustom({ name: "", calories: 400, protein: 30, carbs: 45, fat: 12, ingredients: "", servingSize: "", mealTime: "", notes: "", cuisine: "Egyptian" });
   }
 
   async function generateMealPlan() {
@@ -128,12 +182,10 @@ export function MealPlanner() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ profile, targets, meals })
+        body: JSON.stringify({ profile, targets, meals, foodItems })
       });
 
-      if (!response.ok) {
-        throw new Error("Meal generation failed");
-      }
+      if (!response.ok) throw new Error("Meal generation failed");
 
       const generated = (await response.json()) as { meals: Meal[]; shoppingList: string[]; note: string };
       setAiMeals(generated.meals ?? []);
@@ -150,12 +202,20 @@ export function MealPlanner() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      {quickView ? (
+        <div className="fixed right-4 top-4 z-50 max-w-md rounded-lg border border-primary/30 bg-card p-4 text-sm shadow-2xl">
+          <p className="font-semibold text-primary">{quickView.title}</p>
+          <p className="mt-1">{quickView.added}</p>
+          <p className="mt-1 text-muted-foreground">{quickView.remaining}</p>
+        </div>
+      ) : null}
+
       <div className="space-y-6">
         <Card>
           <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[1fr_160px_140px_140px_140px_140px]">
             <label className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search حواوشي, hawawshi, فول..." />
+              <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search hawawshi, ful, molokhia, rice, egg..." />
             </label>
             <Select value={cuisine} onChange={(event) => setCuisine(event.target.value)} aria-label="Cuisine filter">
               {cuisines.map((item) => (
@@ -207,9 +267,7 @@ export function MealPlanner() {
                         variant={favorites.includes(meal.id) ? "default" : "ghost"}
                         aria-label="Favorite meal"
                         title="Favorite meal"
-                        onClick={() =>
-                          setFavorites((current) => (current.includes(meal.id) ? current.filter((id) => id !== meal.id) : [...current, meal.id]))
-                        }
+                        onClick={() => setFavorites((current) => (current.includes(meal.id) ? current.filter((id) => id !== meal.id) : [...current, meal.id]))}
                       >
                         <Heart className="h-4 w-4" />
                       </Button>
@@ -264,9 +322,7 @@ export function MealPlanner() {
           <CardHeader>
             <ListChecks className="mb-3 h-7 w-7 text-primary" />
             <CardTitle>Generated meal plan</CardTitle>
-            <CardDescription>
-              {aiMeals.length ? "Gemini-generated plan using your profile." : `Simple free suggestion near your ${targets.calories} kcal target.`}
-            </CardDescription>
+            <CardDescription>{aiMeals.length ? "Gemini-generated plan using your profile." : `Simple free suggestion near your ${targets.calories} kcal target.`}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Button className="w-full" onClick={generateMealPlan} disabled={generatingMeals}>
@@ -283,6 +339,49 @@ export function MealPlanner() {
                 <span className="font-semibold">{meal.calories}</span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <Database className="mb-3 h-7 w-7 text-primary" />
+            <CardTitle>Egyptian food database</CardTitle>
+            <CardDescription>User-provided approximate macros stored in Supabase.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {filteredFoodItems.length ? (
+              filteredFoodItems.map((item) => (
+                <div key={item.id} className="rounded-md border bg-background/60 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{item.foodName}</p>
+                      <p className="text-xs text-muted-foreground">{item.servingSize}</p>
+                    </div>
+                    <span className="text-sm font-semibold">{item.calories} kcal</span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    P {item.proteinG}g - C {item.carbsG}g - F {item.fatG}g
+                  </p>
+                  <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                    <Input
+                      type="number"
+                      min="0.25"
+                      step="0.25"
+                      value={servings[item.id] ?? "1"}
+                      onChange={(event) => setServings((current) => ({ ...current, [item.id]: event.target.value }))}
+                      placeholder="Serving quantity, e.g. 1"
+                      aria-label={`Serving quantity for ${item.foodName}`}
+                    />
+                    <Button onClick={() => addFoodItemToLog(item)}>
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No Egyptian food items found. Paste the Egyptian seed SQL in Supabase, then redeploy or refresh.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -307,14 +406,20 @@ export function MealPlanner() {
           </CardHeader>
           <CardContent>
             <form className="space-y-3" onSubmit={createMeal}>
-              <Input value={custom.name} onChange={(event) => setCustom((current) => ({ ...current, name: event.target.value }))} placeholder="Meal name" required />
+              <label className="grid gap-2 text-sm font-medium">
+                Meal name
+                <Input value={custom.name} onChange={(event) => setCustom((current) => ({ ...current, name: event.target.value }))} placeholder="Chicken rice bowl" required />
+              </label>
               <div className="grid grid-cols-2 gap-3">
-                <Input type="number" value={custom.calories} onChange={(event) => setCustom((current) => ({ ...current, calories: Number(event.target.value) }))} placeholder="Calories" />
-                <Input type="number" value={custom.protein} onChange={(event) => setCustom((current) => ({ ...current, protein: Number(event.target.value) }))} placeholder="Protein" />
-                <Input type="number" value={custom.carbs} onChange={(event) => setCustom((current) => ({ ...current, carbs: Number(event.target.value) }))} placeholder="Carbs" />
-                <Input type="number" value={custom.fat} onChange={(event) => setCustom((current) => ({ ...current, fat: Number(event.target.value) }))} placeholder="Fat" />
+                <Input type="number" min="0" value={custom.calories} onChange={(event) => setCustom((current) => ({ ...current, calories: Number(event.target.value) }))} placeholder="Calories, e.g. 520" />
+                <Input type="number" min="0" value={custom.protein} onChange={(event) => setCustom((current) => ({ ...current, protein: Number(event.target.value) }))} placeholder="Protein in grams, e.g. 35" />
+                <Input type="number" min="0" value={custom.carbs} onChange={(event) => setCustom((current) => ({ ...current, carbs: Number(event.target.value) }))} placeholder="Carbs in grams, e.g. 60" />
+                <Input type="number" min="0" value={custom.fat} onChange={(event) => setCustom((current) => ({ ...current, fat: Number(event.target.value) }))} placeholder="Fat in grams, e.g. 12" />
               </div>
-              <Textarea value={custom.ingredients} onChange={(event) => setCustom((current) => ({ ...current, ingredients: event.target.value }))} placeholder="One ingredient per line" />
+              <Input value={custom.servingSize} onChange={(event) => setCustom((current) => ({ ...current, servingSize: event.target.value }))} placeholder="Serving size, e.g. 1 bowl or 250g" />
+              <Input value={custom.mealTime} onChange={(event) => setCustom((current) => ({ ...current, mealTime: event.target.value }))} placeholder="Meal time, e.g. 13:30" />
+              <Textarea value={custom.ingredients} onChange={(event) => setCustom((current) => ({ ...current, ingredients: event.target.value }))} placeholder="Ingredients, e.g. chicken, rice, olive oil" />
+              <Textarea value={custom.notes} onChange={(event) => setCustom((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional notes, e.g. post-workout meal" />
               <Button className="w-full" type="submit">
                 <Plus className="h-4 w-4" />
                 Save meal
