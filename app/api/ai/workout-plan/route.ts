@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { exercises } from "@/data/exercises";
 import { generateGeminiJSON } from "@/services/ai/geminiClient";
+import { validateWorkoutPlan } from "@/services/ai/planVerifier";
 import { generateWorkoutPlan } from "@/services/ai/workoutGenerator";
 import type { Profile, WorkoutDay, WorkoutExercise, WorkoutPlan } from "@/types";
 
@@ -127,5 +128,20 @@ ${JSON.stringify(exerciseCatalog)}
 `;
 
   const raw = await generateGeminiJSON<Partial<WorkoutPlan>>(prompt, fallback, { temperature: 0.35 });
-  return NextResponse.json(normalizePlan(raw, fallback));
+  let normalized = normalizePlan(raw, fallback);
+  let validation = validateWorkoutPlan(normalized, profile, exercises);
+
+  if (!validation.valid) {
+    const retryPrompt = `${prompt}
+
+The previous response failed validation for these reasons:
+${validation.issues.map((issue) => `- ${issue}`).join("\n")}
+
+Retry once. Return only valid JSON.`;
+    const retryRaw = await generateGeminiJSON<Partial<WorkoutPlan>>(retryPrompt, fallback, { temperature: 0.2 });
+    normalized = normalizePlan(retryRaw, fallback);
+    validation = validateWorkoutPlan(normalized, profile, exercises);
+  }
+
+  return NextResponse.json(validation.valid ? normalized : fallback);
 }
