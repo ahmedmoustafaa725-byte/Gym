@@ -113,6 +113,8 @@ create table if not exists public.exercise_logs (
   created_at timestamptz not null default now()
 );
 
+alter table public.exercise_logs drop constraint if exists exercise_logs_exercise_id_fkey;
+
 alter table public.progress_entries add column if not exists notes text;
 alter table public.progress_entries add column if not exists hips_cm numeric;
 alter table public.progress_entries add column if not exists chest_cm numeric;
@@ -212,10 +214,29 @@ create table if not exists public.ai_generated_plans (
 );
 
 create or replace view public.exercise_library as
-select e.id, e.name, e.arabic_name, e.muscle_group, e.equipment, e.difficulty, e.instructions, e.common_mistakes, e.alternatives, v.video_url, v.thumbnail, v.source, v.license_note, v.attribution, v.is_verified
+select
+  e.id,
+  e.name,
+  e.arabic_name,
+  e.muscle_group,
+  e.equipment,
+  e.difficulty,
+  e.instructions,
+  e.common_mistakes,
+  e.alternatives,
+  v.video_url,
+  v.thumbnail,
+  v.source,
+  v.license_note,
+  v.attribution,
+  v.is_verified
 from public.exercises e
 left join lateral (
-  select * from public.exercise_videos ev where ev.exercise_id = e.id order by ev.is_verified desc, ev.created_at desc limit 1
+  select *
+  from public.exercise_videos ev
+  where ev.exercise_id = e.id
+  order by ev.is_verified desc, ev.created_at desc
+  limit 1
 ) v on true;
 
 create index if not exists onboarding_answers_user_idx on public.onboarding_answers(user_id);
@@ -268,6 +289,28 @@ drop policy if exists "Users update own meals" on public.meals;
 create policy "Users update own meals" on public.meals for update using (created_by = auth.uid() or public.is_admin()) with check (created_by = auth.uid() or public.is_admin());
 drop policy if exists "Users delete own meals" on public.meals;
 create policy "Users delete own meals" on public.meals for delete using (created_by = auth.uid() or public.is_admin());
+
+drop policy if exists "Users manage own meal ingredients" on public.ingredients;
+create policy "Users manage own meal ingredients" on public.ingredients for all
+using (
+  public.is_admin()
+  or exists (select 1 from public.meals m where m.id = ingredients.meal_id and m.created_by = auth.uid())
+)
+with check (
+  public.is_admin()
+  or exists (select 1 from public.meals m where m.id = ingredients.meal_id and m.created_by = auth.uid())
+);
+
+drop policy if exists "Workouts follow private plans" on public.workouts;
+create policy "Workouts follow private plans" on public.workouts for all
+using (
+  public.is_admin()
+  or exists (select 1 from public.workout_plans wp where wp.id = workouts.workout_plan_id and wp.user_id = auth.uid())
+)
+with check (
+  public.is_admin()
+  or exists (select 1 from public.workout_plans wp where wp.id = workouts.workout_plan_id and wp.user_id = auth.uid())
+);
 
 drop policy if exists "Meal plans are private" on public.meal_plans;
 create policy "Meal plans are private" on public.meal_plans for all using (user_id = auth.uid() or public.is_admin()) with check (user_id = auth.uid() or public.is_admin());
