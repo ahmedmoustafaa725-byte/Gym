@@ -68,7 +68,7 @@ export function ResourceManager<T extends Row>({
       <CardContent className="space-y-4">
         <label className="relative block">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${title.toLowerCase()}...`} />
+          <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${title.toLowerCase()} by name, email, muscle, cuisine, or key`} />
         </label>
 
         <div className="overflow-x-auto rounded-lg border">
@@ -122,7 +122,7 @@ export function ResourceManager<T extends Row>({
                 Save
               </Button>
             </div>
-            <Textarea className="min-h-72 font-mono text-xs" value={jsonDraft} onChange={(event) => setJsonDraft(event.target.value)} />
+            <Textarea className="min-h-72 font-mono text-xs" value={jsonDraft} onChange={(event) => setJsonDraft(event.target.value)} placeholder="Edit the selected JSON record, then save. Keep required fields like id and name." />
           </div>
         ) : null}
       </CardContent>
