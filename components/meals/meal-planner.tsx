@@ -33,6 +33,7 @@ export function MealPlanner() {
   const [generatingMeals, setGeneratingMeals] = useState(false);
   const [servings, setServings] = useState<Record<string, string>>({});
   const [quickView, setQuickView] = useState<{ title: string; added: string; remaining: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [custom, setCustom] = useState({
     name: "",
     calories: 400,
@@ -109,7 +110,9 @@ export function MealPlanner() {
       added: `+${log.calories} kcal | +${log.protein}g protein | +${log.carbs}g carbs | +${log.fat}g fat`,
       remaining: `Remaining today: ${Math.max(0, targets.calories - next.calories)} kcal | ${Math.max(0, targets.protein - next.protein)}g protein | ${Math.max(0, targets.carbs - next.carbs)}g carbs | ${Math.max(0, targets.fat - next.fat)}g fat`
     });
+    setToastMessage("Meal added to today");
     window.setTimeout(() => setQuickView(null), 2000);
+    window.setTimeout(() => setToastMessage(null), 2200);
   }
 
   async function addMealToLog(meal: Meal) {
@@ -223,6 +226,10 @@ export function MealPlanner() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      {toastMessage ? (
+        <div className="fixed right-4 top-4 z-50 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 shadow-xl">{toastMessage}</div>
+      ) : null}
+
       {quickView ? (
         <div className="fixed right-4 top-4 z-50 max-w-md rounded-lg border border-primary/30 bg-card p-4 text-sm shadow-2xl">
           <p className="font-semibold text-primary">{quickView.title}</p>
@@ -439,7 +446,7 @@ export function MealPlanner() {
                 <Input type="number" min="0" value={custom.fat} onChange={(event) => setCustom((current) => ({ ...current, fat: Number(event.target.value) }))} placeholder="Fat in grams, e.g. 12" />
               </div>
               <Input value={custom.servingSize} onChange={(event) => setCustom((current) => ({ ...current, servingSize: event.target.value }))} placeholder="Serving size, e.g. 1 bowl or 250g" />
-              <Input value={custom.mealTime} onChange={(event) => setCustom((current) => ({ ...current, mealTime: event.target.value }))} placeholder="Meal time, e.g. 13:30" />
+              <Input type="time" value={custom.mealTime} onChange={(event) => setCustom((current) => ({ ...current, mealTime: event.target.value }))} placeholder="Meal time, e.g. 13:30" />
               <Textarea value={custom.ingredients} onChange={(event) => setCustom((current) => ({ ...current, ingredients: event.target.value }))} placeholder="Ingredients, e.g. chicken, rice, olive oil" />
               <Textarea value={custom.notes} onChange={(event) => setCustom((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional notes, e.g. post-workout meal" />
               <Button className="w-full" type="submit">

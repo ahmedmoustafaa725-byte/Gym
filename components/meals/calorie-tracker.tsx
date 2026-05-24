@@ -271,14 +271,14 @@ export function CalorieTracker() {
               <Input value={manual.mealName} onChange={(event) => setManual((current) => ({ ...current, mealName: event.target.value }))} placeholder="Chicken rice bowl" required />
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <Input value={manual.mealTime} onChange={(event) => setManual((current) => ({ ...current, mealTime: event.target.value }))} placeholder="Meal time, e.g. 13:30" aria-label="Meal time" />
+              <Input type="time" value={manual.mealTime} onChange={(event) => setManual((current) => ({ ...current, mealTime: event.target.value }))} placeholder="Meal time, e.g. 13:30" aria-label="Meal time" />
               <Input value={manual.servingSize} onChange={(event) => setManual((current) => ({ ...current, servingSize: event.target.value }))} placeholder="Serving size, e.g. 1 bowl or 250g" aria-label="Serving size" />
               <Input type="number" min="0" value={manual.calories} onChange={(event) => setManual((current) => ({ ...current, calories: Number(event.target.value) }))} placeholder="Calories, e.g. 520" aria-label="Calories" />
               <Input type="number" min="0" value={manual.protein} onChange={(event) => setManual((current) => ({ ...current, protein: Number(event.target.value) }))} placeholder="Protein in grams, e.g. 35" aria-label="Protein grams" />
               <Input type="number" min="0" value={manual.carbs} onChange={(event) => setManual((current) => ({ ...current, carbs: Number(event.target.value) }))} placeholder="Carbs in grams, e.g. 60" aria-label="Carbs grams" />
               <Input type="number" min="0" value={manual.fat} onChange={(event) => setManual((current) => ({ ...current, fat: Number(event.target.value) }))} placeholder="Fat in grams, e.g. 12" aria-label="Fat grams" />
             </div>
-            <Textarea value={manual.notes} onChange={(event) => setManual((current) => ({ ...current, notes: event.target.value }))} placeholder="Ingredients or notes, e.g. chicken, rice, olive oil" />
+            <Textarea value={manual.notes} onChange={(event) => setManual((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional notes, e.g. post-workout meal" />
             <Button className="w-full" type="submit">
               <Plus className="h-4 w-4" />
               Add food
