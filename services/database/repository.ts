@@ -227,6 +227,24 @@ function mapFoodLog(row: DbRecord): FoodLog {
   };
 }
 
+function buildFoodItemsFallback(): FoodItem[] {
+  return seedMeals.map((meal, index) => ({
+    id: `seed-food-${index + 1}`,
+    foodName: meal.name,
+    servingSize: meal.portionSize,
+    calories: meal.calories,
+    proteinG: meal.protein,
+    carbsG: meal.carbs,
+    fatG: meal.fat,
+    fiberG: undefined,
+    category: meal.tags[0] ?? "Egyptian meal",
+    cuisine: meal.cuisine,
+    sourceType: "seed",
+    isGlobal: true,
+    aliases: [meal.name, ...(meal.arabicName ? [meal.arabicName] : []), ...meal.aliases]
+  }));
+}
+
 function foodLogRow(log: FoodLog | (Omit<FoodLog, "id"> & { id?: string })) {
   return compactRow({
     id: isUuid(log.id) ? log.id : undefined,
@@ -598,7 +616,8 @@ export async function listMeals(): Promise<Meal[]> {
   if (!client) return seedMeals;
   const { data, error } = await client.from("meals").select("*, ingredients(name, amount, calories)").order("name");
   if (error) return seedMeals;
-  return (data as DbRecord[]).map(mapMeal);
+  const mapped = (data as DbRecord[]).map(mapMeal);
+  return mapped.length ? mapped : seedMeals;
 }
 
 export async function upsertMeal(meal: Meal, userId?: string) {
@@ -622,16 +641,17 @@ export async function deleteMeal(id: string) {
 
 export async function listFoodItems(options: { query?: string; cuisine?: string } = {}): Promise<FoodItem[]> {
   const client = db();
-  if (!client) return [];
+  if (!client) return buildFoodItemsFallback();
   let query = client.from("food_items").select("*").order("food_name");
-  if (options.cuisine && options.cuisine !== "all") query = query.eq("cuisine", options.cuisine);
+  if (options.cuisine && options.cuisine !== "all") query = query.ilike("cuisine", options.cuisine);
   if (options.query?.trim()) {
     const term = `%${options.query.trim()}%`;
     query = query.or(`food_name.ilike.${term},serving_size.ilike.${term},category.ilike.${term},cuisine.ilike.${term}`);
   }
   const { data, error } = await query.limit(250);
-  if (error) return [];
-  return (data as DbRecord[]).map(mapFoodItem);
+  if (error) return buildFoodItemsFallback();
+  const mapped = (data as DbRecord[]).map(mapFoodItem);
+  return mapped.length ? mapped : buildFoodItemsFallback();
 }
 
 export async function createFoodLog(log: Omit<FoodLog, "id"> & { id?: string }): Promise<FoodLog> {
