@@ -44,7 +44,8 @@ export function WorkoutPlanView() {
         throw new Error("Workout generation failed");
       }
 
-      const generated = await response.json();
+      const payload = (await response.json()) as { plan: typeof workoutPlan };
+      const generated = payload.plan;
       setWorkoutPlan(generated);
       void saveAiGeneratedPlan({
         userId: profile.userId,

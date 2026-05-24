@@ -58,7 +58,8 @@ export function OnboardingFlow() {
         throw new Error("Workout generation failed");
       }
 
-      return await response.json();
+      const payload = (await response.json()) as { plan: ReturnType<typeof generateWorkoutPlan> };
+      return payload.plan;
     } catch {
       return generateWorkoutPlan(savedProfile, savedProfile.userId);
     }
@@ -75,7 +76,7 @@ export function OnboardingFlow() {
       });
 
       if (!response.ok) throw new Error("Meal generation failed");
-      return (await response.json()) as { meals: Meal[]; shoppingList: string[]; note: string };
+      return (await response.json()) as { verified: boolean; issues: string[]; meals: Meal[]; shoppingList: string[]; note: string };
     } catch {
       return null;
     }

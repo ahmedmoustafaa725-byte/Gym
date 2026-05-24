@@ -188,7 +188,7 @@ export function MealPlanner() {
 
       if (!response.ok) throw new Error("Meal generation failed");
 
-      const generated = (await response.json()) as { meals: Meal[]; shoppingList: string[]; note: string };
+      const generated = (await response.json()) as { verified: boolean; issues: string[]; meals: Meal[]; shoppingList: string[]; note: string };
       setAiMeals(generated.meals ?? []);
       setAiShoppingList(generated.shoppingList ?? []);
       setAiNote(generated.note ?? "");
@@ -215,7 +215,7 @@ export function MealPlanner() {
     } catch {
       setAiMeals(builtInSuggestedPlan);
       setAiShoppingList([]);
-      setAiNote("Gemini was unavailable, so this plan uses the built-in Egyptian and Middle Eastern meal database.");
+      setAiNote("Gemini could not return a verified diet plan, so nothing was saved. Showing built-in Egyptian and Middle Eastern suggestions only.");
     } finally {
       setGeneratingMeals(false);
     }

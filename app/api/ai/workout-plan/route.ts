@@ -70,6 +70,9 @@ function normalizePlan(raw: Partial<WorkoutPlan>, fallback: WorkoutPlan): Workou
 
 export async function POST(request: Request) {
   const { profile } = (await request.json()) as { profile: Profile };
+  if (!process.env.GEMINI_API_KEY || process.env.AI_PROVIDER !== "gemini") {
+    return NextResponse.json({ error: "Gemini is not configured. Set GEMINI_API_KEY and AI_PROVIDER=gemini." }, { status: 503 });
+  }
   const fallback = generateWorkoutPlan(profile, profile.userId);
   const exerciseCatalog = exercises.map((exercise) => ({
     id: exercise.id,
@@ -143,5 +146,12 @@ Retry once. Return only valid JSON.`;
     validation = validateWorkoutPlan(normalized, profile, exercises);
   }
 
-  return NextResponse.json(validation.valid ? normalized : fallback);
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: "Generated workout plan failed verification.", issues: validation.issues },
+      { status: 422 }
+    );
+  }
+
+  return NextResponse.json({ plan: normalized, verified: true, issues: [] });
 }
