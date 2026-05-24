@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Save, ShieldAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,10 @@ export function ProfileSettings() {
   const [generating, setGenerating] = useState(false);
   const preview = estimateTargets(draft);
   const saved = preview.calories === targets.calories && preview.protein === targets.protein;
+
+  useEffect(() => {
+    setDraft(profile);
+  }, [profile]);
 
   function setField<K extends keyof Profile>(key: K, value: Profile[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -63,7 +67,7 @@ export function ProfileSettings() {
           <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-medium">
               Age
-              <Input type="number" value={draft.age} onChange={(event) => setField("age", Number(event.target.value))} />
+              <Input type="number" min="13" max="100" value={draft.age} onChange={(event) => setField("age", Number(event.target.value))} placeholder="Age in years, e.g. 28" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Gender
@@ -77,16 +81,30 @@ export function ProfileSettings() {
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Height (cm)
-              <Input type="number" value={draft.heightCm} onChange={(event) => setField("heightCm", Number(event.target.value))} />
+              <Input type="number" min="80" max="260" value={draft.heightCm} onChange={(event) => setField("heightCm", Number(event.target.value))} placeholder="Height in cm, e.g. 175" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Weight (kg)
-              <Input type="number" value={draft.weightKg} onChange={(event) => setField("weightKg", Number(event.target.value))} />
+              <Input type="number" min="25" max="350" step="0.1" value={draft.weightKg} onChange={(event) => setField("weightKg", Number(event.target.value))} placeholder="Weight in kg, e.g. 82" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
+              Target weight (kg)
+              <Input type="number" min="25" max="350" step="0.1" value={draft.targetWeightKg ?? ""} onChange={(event) => setField("targetWeightKg", event.target.value ? Number(event.target.value) : undefined)} placeholder="Target weight in kg, e.g. 78" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Goal
               <Select value={draft.goal} onChange={(event) => setField("goal", event.target.value as Profile["goal"])}>
-                {["fat_loss", "muscle_gain", "maintenance", "endurance", "general_fitness"].map((item) => (
+                {["fat_loss", "muscle_gain", "maintenance", "endurance", "general_fitness", "strength"].map((item) => (
+                  <option key={item} value={item}>
+                    {item.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
+              Activity level
+              <Select value={draft.activityLevel} onChange={(event) => setField("activityLevel", event.target.value as Profile["activityLevel"])}>
+                {["sedentary", "light", "moderate", "active", "very_active"].map((item) => (
                   <option key={item} value={item}>
                     {item.replaceAll("_", " ")}
                   </option>
@@ -105,7 +123,7 @@ export function ProfileSettings() {
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Days/week
-              <Input type="number" min={1} max={7} value={draft.daysPerWeek} onChange={(event) => setField("daysPerWeek", Number(event.target.value))} />
+              <Input type="number" min={1} max={7} value={draft.daysPerWeek} onChange={(event) => setField("daysPerWeek", Number(event.target.value))} placeholder="Available training days, e.g. 4" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Minutes/workout
@@ -115,6 +133,7 @@ export function ProfileSettings() {
                 max={180}
                 value={draft.minutesPerWorkout}
                 onChange={(event) => setField("minutesPerWorkout", Number(event.target.value))}
+                placeholder="Workout duration in minutes, e.g. 45"
               />
             </label>
             <label className="grid gap-2 text-sm font-medium md:col-span-2">
@@ -122,15 +141,34 @@ export function ProfileSettings() {
               <Input
                 value={draft.equipment.join(", ")}
                 onChange={(event) => setField("equipment", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))}
+                placeholder="Available equipment, e.g. dumbbells, barbell, bands"
               />
             </label>
             <label className="grid gap-2 text-sm font-medium md:col-span-2">
               Injuries or limitations
-              <Textarea value={draft.injuries} onChange={(event) => setField("injuries", event.target.value)} />
+              <Textarea value={draft.injuries} onChange={(event) => setField("injuries", event.target.value)} placeholder="Injuries or limitations, e.g. knee pain with jumping" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
+              Diet preference
+              <Select value={draft.dietPreference} onChange={(event) => setField("dietPreference", event.target.value as Profile["dietPreference"])}>
+                {["normal", "vegetarian", "vegan", "halal", "pescatarian", "high_protein"].map((item) => (
+                  <option key={item} value={item}>
+                    {item.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
+              Meals per day
+              <Input type="number" min={1} max={8} value={draft.mealsPerDay} onChange={(event) => setField("mealsPerDay", Number(event.target.value))} placeholder="Meals per day, e.g. 3" />
             </label>
             <label className="grid gap-2 text-sm font-medium md:col-span-2">
               Food allergies
-              <Textarea value={draft.foodAllergies} onChange={(event) => setField("foodAllergies", event.target.value)} />
+              <Textarea value={draft.foodAllergies} onChange={(event) => setField("foodAllergies", event.target.value)} placeholder="Food allergies, e.g. peanuts, dairy, shellfish" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium md:col-span-2">
+              Preferred cuisine
+              <Input value={draft.preferredCuisine} onChange={(event) => setField("preferredCuisine", event.target.value)} placeholder="Preferred cuisine, e.g. Egyptian and Middle Eastern" />
             </label>
             <label className="grid gap-2 text-sm font-medium md:col-span-2">
               Favorite meals and disliked foods
@@ -140,6 +178,7 @@ export function ProfileSettings() {
                   const [favoriteMeals, disliked = ""] = event.target.value.split("Avoid:");
                   setDraft((current) => ({ ...current, favoriteMeals: favoriteMeals.trim(), dislikedFoods: disliked.trim() }));
                 }}
+                placeholder="Favorite meals, e.g. grilled chicken, ful, molokhia. Avoid: foods you dislike"
               />
             </label>
             <div className="md:col-span-2">
