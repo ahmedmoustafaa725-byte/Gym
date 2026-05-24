@@ -6,6 +6,7 @@ import { CalendarDays, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ExerciseCard } from "@/components/workouts/exercise-card";
 import { useAppState } from "@/lib/app-state";
 import { generateWorkoutPlan } from "@/services/ai/workoutGenerator";
@@ -15,6 +16,17 @@ const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 export function WorkoutPlanView() {
   const { workoutPlan, profile, setWorkoutPlan } = useAppState();
   const [generating, setGenerating] = useState(false);
+  const [custom, setCustom] = useState({
+    title: "",
+    focus: "",
+    exerciseName: "",
+    sets: "3",
+    reps: "8-12",
+    restSeconds: "90",
+    targetMuscle: "",
+    equipment: "",
+    trainingDay: "0"
+  });
 
   async function regeneratePlan() {
     setGenerating(true);
@@ -37,6 +49,39 @@ export function WorkoutPlanView() {
     } finally {
       setGenerating(false);
     }
+  }
+
+  function addCustomWorkout() {
+    if (!custom.title.trim() || !custom.exerciseName.trim()) return;
+    const exercise = {
+      exerciseId: `custom-${crypto.randomUUID()}`,
+      name: custom.exerciseName,
+      sets: Number(custom.sets),
+      reps: custom.reps,
+      restSeconds: Number(custom.restSeconds),
+      targetMuscle: custom.targetMuscle || "Custom",
+      equipment: custom.equipment || "Custom",
+      difficulty: profile.experience,
+      videoUrl: "",
+      instructions: ["Follow your saved notes and stop if serious pain appears."],
+      commonMistakes: ["Rushing reps", "Skipping warm-up"],
+      alternative: "Choose a similar pain-free movement"
+    };
+    setWorkoutPlan((current) => ({
+      ...current,
+      days: [
+        ...current.days,
+        {
+          id: `custom-day-${crypto.randomUUID()}`,
+          title: custom.title,
+          focus: custom.focus || custom.targetMuscle || "Custom workout",
+          dayIndex: Number(custom.trainingDay),
+          estimatedMinutes: profile.minutesPerWorkout,
+          exercises: [exercise]
+        }
+      ]
+    }));
+    setCustom({ title: "", focus: "", exerciseName: "", sets: "3", reps: "8-12", restSeconds: "90", targetMuscle: "", equipment: "", trainingDay: "0" });
   }
 
   return (
@@ -87,6 +132,27 @@ export function WorkoutPlanView() {
           </motion.div>
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Create custom workout</CardTitle>
+          <CardDescription>Add a workout day to your plan and save it to Supabase.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <Input value={custom.title} onChange={(event) => setCustom((current) => ({ ...current, title: event.target.value }))} placeholder="Workout name, e.g. Push strength" />
+          <Input value={custom.focus} onChange={(event) => setCustom((current) => ({ ...current, focus: event.target.value }))} placeholder="Workout focus, e.g. chest and triceps" />
+          <Input type="number" min="0" max="6" value={custom.trainingDay} onChange={(event) => setCustom((current) => ({ ...current, trainingDay: event.target.value }))} placeholder="Training day index, e.g. 0 for Monday" />
+          <Input value={custom.exerciseName} onChange={(event) => setCustom((current) => ({ ...current, exerciseName: event.target.value }))} placeholder="Exercise name, e.g. Dumbbell press" />
+          <Input type="number" min="1" max="8" value={custom.sets} onChange={(event) => setCustom((current) => ({ ...current, sets: event.target.value }))} placeholder="Sets, e.g. 3" />
+          <Input value={custom.reps} onChange={(event) => setCustom((current) => ({ ...current, reps: event.target.value }))} placeholder="Reps, e.g. 8-12" />
+          <Input type="number" min="30" max="300" value={custom.restSeconds} onChange={(event) => setCustom((current) => ({ ...current, restSeconds: event.target.value }))} placeholder="Rest time in seconds, e.g. 90" />
+          <Input value={custom.targetMuscle} onChange={(event) => setCustom((current) => ({ ...current, targetMuscle: event.target.value }))} placeholder="Target muscle, e.g. chest" />
+          <Input value={custom.equipment} onChange={(event) => setCustom((current) => ({ ...current, equipment: event.target.value }))} placeholder="Equipment, e.g. dumbbells" />
+          <Button className="md:col-span-3" onClick={addCustomWorkout}>
+            Add custom workout
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
