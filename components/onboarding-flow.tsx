@@ -14,12 +14,13 @@ import { coachQuestions } from "@/data/onboarding";
 import { useAppState } from "@/lib/app-state";
 import { useAuth } from "@/lib/auth-context";
 import { estimateTargets, generateWorkoutPlan } from "@/services/ai/workoutGenerator";
-import type { Profile } from "@/types";
+import { markOnboardingComplete, saveCalorieTarget, saveMealPlan, saveOnboardingAnswers } from "@/services/database/repository";
+import type { Meal, Profile } from "@/types";
 
 const steps = [
-  { title: "Body and goal", fields: ["age", "gender", "heightCm", "weightKg", "goal"] },
-  { title: "Training setup", fields: ["experience", "trainingLocation", "equipment", "daysPerWeek", "minutesPerWorkout", "injuries", "preferredTrainingStyle"] },
-  { title: "Food preferences", fields: ["foodAllergies", "dislikedFoods", "favoriteMeals", "preferredCuisine", "budgetLevel", "cookingTime"] }
+  { title: "Body and goal", fields: ["age", "gender", "heightCm", "weightKg", "targetWeightKg", "goal"] },
+  { title: "Training setup", fields: ["experience", "activityLevel", "trainingLocation", "equipment", "daysPerWeek", "minutesPerWorkout", "injuries", "preferredTrainingStyle"] },
+  { title: "Food preferences", fields: ["dietPreference", "foodAllergies", "dislikedFoods", "favoriteMeals", "preferredCuisine", "mealsPerDay", "budgetLevel", "cookingTime"] }
 ];
 
 function prettify(value: string) {
@@ -29,7 +30,7 @@ function prettify(value: string) {
 export function OnboardingFlow() {
   const router = useRouter();
   const { user, setUser } = useAuth();
-  const { profile, setProfile, setWorkoutPlan } = useAppState();
+  const { profile, setProfile, setWorkoutPlan, meals } = useAppState();
   const [draft, setDraft] = useState<Profile>({ ...profile, userId: user?.id ?? profile.userId });
   const [step, setStep] = useState(0);
   const [generating, setGenerating] = useState(false);
@@ -63,6 +64,23 @@ export function OnboardingFlow() {
     }
   }
 
+  async function generateAIMealPlan(savedProfile: Profile, savedTargets: ReturnType<typeof estimateTargets>) {
+    try {
+      const response = await fetch("/api/ai/meal-plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ profile: savedProfile, targets: savedTargets, meals })
+      });
+
+      if (!response.ok) throw new Error("Meal generation failed");
+      return (await response.json()) as { meals: Meal[]; shoppingList: string[]; note: string };
+    } catch {
+      return null;
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (step < steps.length - 1) {
@@ -72,9 +90,26 @@ export function OnboardingFlow() {
 
     const savedProfile = { ...draft, userId: user?.id ?? draft.userId };
     setGenerating(true);
+    const savedTargets = estimateTargets(savedProfile);
     const generatedWorkoutPlan = await generateAIWorkoutPlan(savedProfile);
+    const generatedMealPlan = await generateAIMealPlan(savedProfile, savedTargets);
     setProfile(savedProfile);
     setWorkoutPlan(generatedWorkoutPlan);
+    void saveOnboardingAnswers(savedProfile);
+    void saveCalorieTarget(savedProfile);
+    if (generatedMealPlan) {
+      void saveMealPlan({
+        id: `meal-plan-${crypto.randomUUID()}`,
+        userId: savedProfile.userId,
+        name: "First Gemini meal plan",
+        planDate: new Date().toISOString().slice(0, 10),
+        meals: generatedMealPlan.meals,
+        shoppingList: generatedMealPlan.shoppingList,
+        note: generatedMealPlan.note,
+        createdAt: new Date().toISOString()
+      });
+    }
+    void markOnboardingComplete(savedProfile.userId, true);
     if (user) setUser({ ...user, onboardingComplete: true });
     setGenerating(false);
     router.push("/dashboard");
@@ -135,6 +170,21 @@ export function OnboardingFlow() {
                           type={question.type === "number" ? "number" : "text"}
                           value={String(value ?? "")}
                           onChange={(event) => updateField(key, question.type === "number" ? Number(event.target.value) : event.target.value)}
+                          placeholder={
+                            question.key === "age"
+                              ? "Age in years, e.g. 28"
+                              : question.key === "heightCm"
+                                ? "Height in cm, e.g. 175"
+                                : question.key === "weightKg"
+                                  ? "Weight in kg, e.g. 82"
+                                  : question.key === "targetWeightKg"
+                                    ? "Target weight in kg, e.g. 78"
+                                    : question.key === "mealsPerDay"
+                                      ? "Meals per day, e.g. 3"
+                                      : question.key === "preferredCuisine"
+                                        ? "Egyptian, Middle Eastern, Mediterranean"
+                                        : "Specific answer for your coach"
+                          }
                         />
                       )}
                       {"helper" in question && question.helper ? <span className="text-xs text-muted-foreground">{question.helper}</span> : null}
