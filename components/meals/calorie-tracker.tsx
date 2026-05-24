@@ -11,12 +11,14 @@ import { Progress, ProgressRing } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppState } from "@/lib/app-state";
 import { todayISO } from "@/lib/date";
+import { buildDailyNutritionRecommendations } from "@/services/recommendations/nutritionStandards";
 import type { FoodLog, Meal } from "@/types";
 
 export function CalorieTracker() {
   const { foodLogs, addFoodLog, updateFoodLog, deleteFoodLog, targets, setMeals } = useAppState();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [manual, setManual] = useState({ mealName: "", calories: 350, protein: 25, carbs: 35, fat: 10, notes: "" });
+  const [quickView, setQuickView] = useState<{ added: string; remaining: string } | null>(null);
   const today = todayISO();
   const todayLogs = foodLogs.filter((log) => log.date === today);
   const totals = todayLogs.reduce(
@@ -41,10 +43,28 @@ export function CalorieTracker() {
   const weeklyAverage = byDay.length ? Math.round(byDay.reduce((sum, day) => sum + day.calories, 0) / byDay.length) : 0;
   const bestProteinDay = byDay.reduce((best, day) => (day.protein > best.protein ? day : best), { date: "-", protein: 0, calories: 0 });
   const missedWarning = totals.calories < targets.calories * 0.65 || totals.protein < targets.protein * 0.5;
+  const nutritionGuidance = buildDailyNutritionRecommendations(totals, targets);
 
-  function submitManual(event: FormEvent<HTMLFormElement>) {
+  function showQuickView(log: Omit<FoodLog, "id" | "userId" | "date">) {
+    const next = {
+      calories: totals.calories + log.calories,
+      protein: totals.protein + log.protein,
+      carbs: totals.carbs + log.carbs,
+      fat: totals.fat + log.fat
+    };
+    setQuickView({
+      added: `+${log.calories} kcal | +${log.protein}g protein | +${log.carbs}g carbs | +${log.fat}g fat`,
+      remaining: `Remaining today: ${Math.max(0, targets.calories - next.calories)} kcal | ${Math.max(0, targets.protein - next.protein)}g protein | ${Math.max(0, targets.carbs - next.carbs)}g carbs | ${Math.max(0, targets.fat - next.fat)}g fat`
+    });
+    window.setTimeout(() => setQuickView(null), 2000);
+  }
+
+  async function submitManual(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    addFoodLog({ ...manual, source: "manual" });
+    if (!manual.mealName.trim() || manual.calories < 0 || manual.protein < 0 || manual.carbs < 0 || manual.fat < 0) return;
+    const log = { ...manual, source: "manual" } satisfies Parameters<typeof addFoodLog>[0];
+    await addFoodLog(log);
+    showQuickView(log);
     setManual({ mealName: "", calories: 350, protein: 25, carbs: 35, fat: 10, notes: "" });
   }
 
@@ -90,6 +110,14 @@ export function CalorieTracker() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      {quickView ? (
+        <div className="fixed right-4 top-4 z-50 max-w-md rounded-lg border border-primary/30 bg-card p-4 text-sm shadow-2xl">
+          <p className="font-semibold text-primary">Meal added to today</p>
+          <p className="mt-1">{quickView.added}</p>
+          <p className="mt-1 text-muted-foreground">{quickView.remaining}</p>
+        </div>
+      ) : null}
+
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -127,16 +155,38 @@ export function CalorieTracker() {
           <Card className="border-accent/30">
             <CardContent className="flex gap-3 p-4 text-sm">
               <AlertTriangle className="h-5 w-5 text-accent" />
-              <p>Your intake is far below today’s target. Avoid extreme restriction; add a balanced meal with protein, carbs, and vegetables.</p>
+              <p>Your intake is far below today's target. Avoid extreme restriction; add a balanced meal with protein, carbs, and vegetables.</p>
             </CardContent>
           </Card>
         ) : null}
 
         <Card>
+          <CardHeader>
+            <CardTitle>Daily nutrition recommendations</CardTitle>
+            <CardDescription>General fitness guidance based on your targets, not medical advice.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid gap-2 sm:grid-cols-4">
+              {Object.entries(nutritionGuidance.statuses).map(([key, value]) => (
+                <div key={key} className="rounded-md border bg-background/60 p-3">
+                  <p className="capitalize text-muted-foreground">{key}</p>
+                  <p className="font-semibold">{value}</p>
+                </div>
+              ))}
+            </div>
+            {nutritionGuidance.messages.map((message) => (
+              <p key={message} className="rounded-md border bg-background/60 p-3 text-muted-foreground">
+                {message}
+              </p>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle>Meal history</CardTitle>
-              <CardDescription>Edit or delete today’s logged foods.</CardDescription>
+              <CardDescription>Edit or delete today's logged foods.</CardDescription>
             </div>
             <Button variant="outline" onClick={copyYesterday}>
               <Copy className="h-4 w-4" />
@@ -150,9 +200,9 @@ export function CalorieTracker() {
                 <div key={log.id} className="rounded-md border bg-background/60 p-3">
                   {editing ? (
                     <div className="grid gap-3 md:grid-cols-5">
-                      <Input className="md:col-span-2" value={log.mealName} onChange={(event) => updateFoodLog(log.id, { mealName: event.target.value })} />
-                      <Input type="number" value={log.calories} onChange={(event) => updateFoodLog(log.id, { calories: Number(event.target.value) })} />
-                      <Input type="number" value={log.protein} onChange={(event) => updateFoodLog(log.id, { protein: Number(event.target.value) })} />
+                      <Input className="md:col-span-2" value={log.mealName} onChange={(event) => updateFoodLog(log.id, { mealName: event.target.value })} placeholder="Meal name, e.g. chicken rice bowl" aria-label="Edit meal name" />
+                      <Input type="number" min="0" value={log.calories} onChange={(event) => updateFoodLog(log.id, { calories: Number(event.target.value) })} placeholder="Calories, e.g. 520" aria-label="Edit calories" />
+                      <Input type="number" min="0" value={log.protein} onChange={(event) => updateFoodLog(log.id, { protein: Number(event.target.value) })} placeholder="Protein in grams, e.g. 35" aria-label="Edit protein" />
                       <Button onClick={() => setEditingId(null)}>
                         <Save className="h-4 w-4" />
                         Save
@@ -216,14 +266,17 @@ export function CalorieTracker() {
         </CardHeader>
         <CardContent>
           <form className="space-y-3" onSubmit={submitManual}>
-            <Input value={manual.mealName} onChange={(event) => setManual((current) => ({ ...current, mealName: event.target.value }))} placeholder="Meal name" required />
+            <label className="grid gap-2 text-sm font-medium">
+              Meal name
+              <Input value={manual.mealName} onChange={(event) => setManual((current) => ({ ...current, mealName: event.target.value }))} placeholder="Chicken rice bowl" required />
+            </label>
             <div className="grid grid-cols-2 gap-3">
-              <Input type="number" value={manual.calories} onChange={(event) => setManual((current) => ({ ...current, calories: Number(event.target.value) }))} placeholder="Calories" />
-              <Input type="number" value={manual.protein} onChange={(event) => setManual((current) => ({ ...current, protein: Number(event.target.value) }))} placeholder="Protein" />
-              <Input type="number" value={manual.carbs} onChange={(event) => setManual((current) => ({ ...current, carbs: Number(event.target.value) }))} placeholder="Carbs" />
-              <Input type="number" value={manual.fat} onChange={(event) => setManual((current) => ({ ...current, fat: Number(event.target.value) }))} placeholder="Fat" />
+              <Input type="number" min="0" value={manual.calories} onChange={(event) => setManual((current) => ({ ...current, calories: Number(event.target.value) }))} placeholder="Calories, e.g. 520" aria-label="Calories" />
+              <Input type="number" min="0" value={manual.protein} onChange={(event) => setManual((current) => ({ ...current, protein: Number(event.target.value) }))} placeholder="Protein in grams, e.g. 35" aria-label="Protein grams" />
+              <Input type="number" min="0" value={manual.carbs} onChange={(event) => setManual((current) => ({ ...current, carbs: Number(event.target.value) }))} placeholder="Carbs in grams, e.g. 60" aria-label="Carbs grams" />
+              <Input type="number" min="0" value={manual.fat} onChange={(event) => setManual((current) => ({ ...current, fat: Number(event.target.value) }))} placeholder="Fat in grams, e.g. 12" aria-label="Fat grams" />
             </div>
-            <Textarea value={manual.notes} onChange={(event) => setManual((current) => ({ ...current, notes: event.target.value }))} placeholder="Portion notes or ingredients" />
+            <Textarea value={manual.notes} onChange={(event) => setManual((current) => ({ ...current, notes: event.target.value }))} placeholder="Ingredients or notes, e.g. chicken, rice, olive oil" />
             <Button className="w-full" type="submit">
               <Plus className="h-4 w-4" />
               Add food
