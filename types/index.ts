@@ -109,6 +109,18 @@ export type WorkoutPlan = {
   days: WorkoutDay[];
 };
 
+export type WorkoutTemplate = {
+  id: string;
+  name: string;
+  goal: Goal;
+  daysPerWeek: number;
+  split: string;
+  template: WorkoutPlan;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type WorkoutSetLog = {
   exerciseId: string;
   completed: boolean;

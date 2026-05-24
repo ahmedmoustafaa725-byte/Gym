@@ -94,6 +94,18 @@ create table if not exists public.scheduled_workouts (
   unique (user_id, workout_day_id, scheduled_date)
 );
 
+create table if not exists public.workout_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  goal text not null,
+  days_per_week int not null check (days_per_week between 1 and 7),
+  split text not null,
+  template jsonb not null,
+  created_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.workout_sessions add column if not exists scheduled_workout_id uuid references public.scheduled_workouts(id) on delete set null;
 alter table public.workout_sessions add column if not exists completed_at timestamptz;
 
@@ -130,6 +142,7 @@ alter table public.progress_entries add column if not exists right_thigh_cm nume
 alter table public.progress_entries add column if not exists glutes_cm numeric;
 alter table public.progress_entries add column if not exists calves_cm numeric;
 alter table public.progress_entries add column if not exists photo_path text;
+alter table public.progress_entries add column if not exists photo_url text;
 
 create table if not exists public.progress_photos (
   id uuid primary key default gen_random_uuid(),
@@ -246,6 +259,7 @@ create index if not exists user_food_items_user_idx on public.user_food_items(us
 create index if not exists food_logs_user_date_idx on public.food_logs(user_id, log_date desc);
 create index if not exists meal_plans_user_date_idx on public.meal_plans(user_id, plan_date desc);
 create index if not exists scheduled_workouts_user_date_idx on public.scheduled_workouts(user_id, scheduled_date);
+create index if not exists workout_templates_goal_idx on public.workout_templates(goal, days_per_week);
 create index if not exists exercise_logs_user_session_idx on public.exercise_logs(user_id, workout_session_id);
 create index if not exists progress_entries_user_date_idx on public.progress_entries(user_id, entry_date);
 create index if not exists body_measurements_user_date_idx on public.body_measurements(user_id, measured_at);
@@ -257,6 +271,7 @@ alter table public.user_food_items enable row level security;
 alter table public.meal_food_items enable row level security;
 alter table public.meal_plans enable row level security;
 alter table public.scheduled_workouts enable row level security;
+alter table public.workout_templates enable row level security;
 alter table public.exercise_logs enable row level security;
 alter table public.progress_photos enable row level security;
 alter table public.body_measurements enable row level security;
@@ -316,6 +331,10 @@ drop policy if exists "Meal plans are private" on public.meal_plans;
 create policy "Meal plans are private" on public.meal_plans for all using (user_id = auth.uid() or public.is_admin()) with check (user_id = auth.uid() or public.is_admin());
 drop policy if exists "Scheduled workouts are private" on public.scheduled_workouts;
 create policy "Scheduled workouts are private" on public.scheduled_workouts for all using (user_id = auth.uid() or public.is_admin()) with check (user_id = auth.uid() or public.is_admin());
+drop policy if exists "Workout templates readable" on public.workout_templates;
+create policy "Workout templates readable" on public.workout_templates for select to authenticated using (true);
+drop policy if exists "Admins manage workout templates" on public.workout_templates;
+create policy "Admins manage workout templates" on public.workout_templates for all using (public.is_admin()) with check (public.is_admin());
 drop policy if exists "Exercise logs are private" on public.exercise_logs;
 create policy "Exercise logs are private" on public.exercise_logs for all using (user_id = auth.uid() or public.is_admin()) with check (user_id = auth.uid() or public.is_admin());
 drop policy if exists "Progress photos are private" on public.progress_photos;
