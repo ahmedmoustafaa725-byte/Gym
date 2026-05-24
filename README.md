@@ -15,8 +15,18 @@ This project is prepared for Netlify deployment. Local development is optional, 
    - `supabase/migrations/002_production_data_layer.sql`
    - `supabase/seed/001_seed.sql`
    - `supabase/seed/002_egyptian_food_items.sql`
-4. Confirm the tables exist under Table Editor.
-5. Confirm the `progress-photos` bucket exists under Storage.
+4. Run this verification query to confirm all 100 Egyptian foods were inserted:
+
+```sql
+select count(*) as egyptian_food_count
+from public.food_items
+where cuisine = 'Egyptian'
+  and source_type = 'user_provided_approximate_macro_table';
+```
+
+Expected result: `100`.
+5. Confirm the tables exist under Table Editor.
+6. Confirm the `progress-photos` bucket exists under Storage.
 
 The second migration creates the progress-photo Storage bucket and policies. If you create it manually, use:
 

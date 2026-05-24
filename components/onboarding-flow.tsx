@@ -168,7 +168,19 @@ export function OnboardingFlow() {
                           ))}
                         </Select>
                       ) : question.type === "textarea" ? (
-                        <Textarea value={String(value ?? "")} onChange={(event) => updateField(key, event.target.value)} />
+                        <Textarea value={String(value ?? "")} onChange={(event) => updateField(key, event.target.value)} placeholder={
+                          question.key === "injuries"
+                            ? "Injuries or limitations, e.g. knee pain with jumping"
+                            : question.key === "preferredTrainingStyle"
+                              ? "Preferred style, e.g. strength training with short cardio finishers"
+                              : question.key === "foodAllergies"
+                                ? "Food allergies, e.g. peanuts, dairy, shellfish"
+                                : question.key === "dislikedFoods"
+                                  ? "Foods to avoid, e.g. liver, fried foods"
+                                  : question.key === "favoriteMeals"
+                                    ? "Favorite meals, e.g. grilled chicken, ful, molokhia"
+                                    : "Specific answer for your coach"
+                        } />
                       ) : question.type === "tags" ? (
                         <Input
                           value={Array.isArray(value) ? value.join(", ") : String(value ?? "")}
@@ -181,11 +193,13 @@ export function OnboardingFlow() {
                                 .filter(Boolean)
                             )
                           }
-                          placeholder="Dumbbells, bands, bench"
+                          placeholder="Available equipment, e.g. dumbbells, bands, bench"
                         />
                       ) : (
                         <Input
                           type={question.type === "number" ? "number" : "text"}
+                          min={question.key === "age" ? 13 : question.key === "heightCm" ? 80 : question.key === "weightKg" || question.key === "targetWeightKg" ? 25 : question.key === "daysPerWeek" ? 1 : question.key === "minutesPerWorkout" ? 15 : question.key === "mealsPerDay" ? 1 : undefined}
+                          max={question.key === "age" ? 100 : question.key === "heightCm" ? 260 : question.key === "weightKg" || question.key === "targetWeightKg" ? 350 : question.key === "daysPerWeek" ? 7 : question.key === "minutesPerWorkout" ? 180 : question.key === "mealsPerDay" ? 8 : undefined}
                           value={String(value ?? "")}
                           onChange={(event) => updateField(key, question.type === "number" ? Number(event.target.value) : event.target.value)}
                           placeholder={
