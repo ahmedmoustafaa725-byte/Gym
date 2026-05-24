@@ -42,19 +42,29 @@ export function estimateTargets(profile: Profile): MacroTarget {
   const age = profile.age;
   const genderAdjustment = profile.gender === "male" ? 5 : profile.gender === "female" ? -161 : -80;
   const bmr = 10 * weight + 6.25 * height - 5 * age + genderAdjustment;
-  const activity = profile.daysPerWeek >= 5 ? 1.55 : profile.daysPerWeek >= 3 ? 1.4 : 1.25;
+  const activityMap = {
+    sedentary: 1.2,
+    light: 1.32,
+    moderate: 1.45,
+    active: 1.6,
+    very_active: 1.72
+  };
+  const activity = activityMap[profile.activityLevel] ?? (profile.daysPerWeek >= 5 ? 1.55 : profile.daysPerWeek >= 3 ? 1.4 : 1.25);
   const goalAdjustment: Record<Goal, number> = {
     fat_loss: -400,
     muscle_gain: 250,
     maintenance: 0,
     endurance: 100,
-    general_fitness: -100
+    general_fitness: -100,
+    strength: 150
   };
   const calories = clampCalories(bmr * activity + goalAdjustment[profile.goal]);
-  const protein = Math.round(weight * (profile.goal === "muscle_gain" ? 2 : 1.7));
+  const protein = Math.round(weight * (profile.goal === "muscle_gain" || profile.goal === "strength" ? 2 : 1.7));
   const fat = Math.round((calories * 0.25) / 9);
   const carbs = Math.round((calories - protein * 4 - fat * 9) / 4);
-  return { calories, protein, carbs, fat };
+  const fiber = Math.max(25, Math.round((calories / 1000) * 14));
+  const waterMl = Math.round(Math.max(2200, weight * 35));
+  return { calories, protein, carbs, fat, fiber, waterMl };
 }
 
 export function generateWorkoutPlan(profile: Profile, userId = profile.userId): WorkoutPlan {
@@ -85,7 +95,14 @@ export function generateWorkoutPlan(profile: Profile, userId = profile.userId): 
   return {
     id: `plan-${userId}`,
     userId,
-    name: profile.goal === "fat_loss" ? "Lean Strength Builder" : profile.goal === "muscle_gain" ? "Muscle Growth Split" : "Balanced Performance Plan",
+    name:
+      profile.goal === "fat_loss"
+        ? "Lean Strength Builder"
+        : profile.goal === "muscle_gain"
+          ? "Muscle Growth Split"
+          : profile.goal === "strength"
+            ? "Strength Foundation Plan"
+            : "Balanced Performance Plan",
     goal: profile.goal,
     daysPerWeek: Math.min(profile.daysPerWeek, days.length),
     split: profile.daysPerWeek <= 3 ? "Full body" : profile.daysPerWeek === 4 ? "Upper/lower" : "Push/pull/legs",
