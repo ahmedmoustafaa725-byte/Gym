@@ -562,9 +562,9 @@ export async function listExercises(): Promise<Exercise[]> {
   const client = db();
   if (!client) return seedExercises;
   const { data, error } = await client.from("exercises").select("*, exercise_videos(*)").order("name");
-  if (error) return seedExercises;
+  if (error) return [];
   const mapped = (data as DbRecord[]).map(mapExercise);
-  return mapped.length ? mapped : seedExercises;
+  return mapped;
 }
 
 export async function upsertExercise(exercise: Exercise) {
@@ -597,7 +597,7 @@ export async function listMeals(): Promise<Meal[]> {
   const client = db();
   if (!client) return seedMeals;
   const { data, error } = await client.from("meals").select("*, ingredients(name, amount, calories)").order("name");
-  if (error) return seedMeals;
+  if (error) return [];
   return (data as DbRecord[]).map(mapMeal);
 }
 
