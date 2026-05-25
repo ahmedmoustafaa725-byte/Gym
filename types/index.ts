@@ -57,9 +57,16 @@ export type Exercise = {
   name: string;
   arabicName?: string;
   muscleGroup: string;
+  secondaryMuscles?: string[];
   equipment: string;
+  trainingLocation?: "gym" | "home" | "both";
+  category?: string;
+  movementPattern?: "push" | "pull" | "legs" | "full_body" | "mobility" | "stretching" | "cardio";
   difficulty: Difficulty;
   videoUrl: string;
+  sourceUrl?: string;
+  sourceName?: string;
+  approximateMatch?: boolean;
   thumbnail: string;
   videoSource: "Wikimedia Commons" | "Seed placeholder" | "wger compatible" | "YouTube Embed";
   videoLinks?: Array<{
@@ -79,10 +86,12 @@ export type WorkoutExercise = {
   sets: number;
   reps: string;
   restSeconds: number;
+  plannedWeightKg?: number;
   targetMuscle: string;
   equipment: string;
   difficulty: Difficulty;
   videoUrl: string;
+  sourceUrl?: string;
   instructions: string[];
   commonMistakes: string[];
   alternative: string;

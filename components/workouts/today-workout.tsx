@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Clock, Save, Sparkles, Trees } from "lucide-react";
+import { CheckCircle2, Clock, ExternalLink, Save, Sparkles, Trees } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,10 @@ export function TodayWorkout() {
                     <div>
                       <CardTitle>{exercise.name}</CardTitle>
                       <CardDescription>
-                        {exercise.sets} sets x {exercise.reps} - {exercise.restSeconds}s rest - {exercise.targetMuscle}
+                        {exercise.sets} sets x {exercise.reps}
+                        {exercise.plannedWeightKg ? ` - ${exercise.plannedWeightKg}kg planned` : ""}
+                        {" - "}
+                        {exercise.restSeconds}s rest - {exercise.targetMuscle}
                       </CardDescription>
                     </div>
                     <Button
@@ -130,6 +133,12 @@ export function TodayWorkout() {
                   <div className="space-y-3 text-sm text-muted-foreground">
                     {exercise.videoUrl ? (
                       <video className="mb-3 aspect-video w-full rounded-md border bg-black object-cover" src={exercise.videoUrl} controls muted preload="metadata" />
+                    ) : null}
+                    {exercise.sourceUrl ? (
+                      <a href={exercise.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-primary underline underline-offset-4">
+                        <ExternalLink className="h-4 w-4" />
+                        Exercise instructions / video source
+                      </a>
                     ) : null}
                     <p className="font-medium text-foreground">Instructions</p>
                     <ul className="space-y-1">
