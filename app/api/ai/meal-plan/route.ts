@@ -48,6 +48,9 @@ export async function POST(request: Request) {
     meals?: Meal[];
     foodItems?: FoodItem[];
   };
+  if (!process.env.GEMINI_API_KEY || process.env.AI_PROVIDER !== "gemini") {
+    return NextResponse.json({ error: "Gemini is not configured. Set GEMINI_API_KEY and AI_PROVIDER=gemini." }, { status: 503 });
+  }
 
   const fallback = fallbackMealPlan();
   const sourceMeals = (meals?.length ? meals : seedMeals).slice(0, 25);
@@ -130,14 +133,15 @@ Retry once with realistic calories/macros. Return only valid JSON.`,
   }
 
   if (!validation.valid) {
-    normalizedMeals = fallback.meals;
-    raw = fallback;
+    return NextResponse.json({ error: "Generated diet plan failed verification.", issues: validation.issues }, { status: 422 });
   }
   const shoppingList = Array.isArray(raw.shoppingList) && raw.shoppingList.length
     ? raw.shoppingList.map(String)
     : Array.from(new Set(normalizedMeals.flatMap((meal) => meal.ingredients.map((ingredient) => `${ingredient.amount} ${ingredient.name}`))));
 
   return NextResponse.json({
+    verified: true,
+    issues: [],
     meals: normalizedMeals,
     shoppingList,
     note: raw.note || fallback.note

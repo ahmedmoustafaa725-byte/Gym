@@ -42,7 +42,8 @@ export function ProfileSettings() {
         throw new Error("Workout generation failed");
       }
 
-      return await response.json();
+      const payload = (await response.json()) as { plan: ReturnType<typeof generateWorkoutPlan> };
+      return payload.plan;
     } catch {
       return generateWorkoutPlan(savedProfile, savedProfile.userId);
     }
