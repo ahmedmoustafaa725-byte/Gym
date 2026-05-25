@@ -313,12 +313,7 @@ export function MealPlanner() {
                         <Badge key={tag}>{tag}</Badge>
                       ))}
                     </div>
-                    {meal.normalCalories || meal.fitnessCalories ? (
-                      <div className="rounded-md border bg-background/60 p-3 text-sm text-muted-foreground">
-                        <p>Normal version: {meal.normalCalories}</p>
-                        <p>Fitness version: {meal.fitnessCalories}</p>
-                      </div>
-                    ) : null}
+                    
                     <div>
                       <p className="font-semibold">Healthier prep</p>
                       <p className="mt-1 text-sm text-muted-foreground">{meal.healthierTips.join(" ")}</p>
