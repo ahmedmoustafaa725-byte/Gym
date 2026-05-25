@@ -212,7 +212,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setProfileState(nextProfile);
       setWorkoutPlanState(dbWorkoutPlan ?? emptyWorkoutPlan(nextProfile));
       setFoodLogsState(dbFoodLogs);
-      setMealsState(dbMeals);
+      const seededMealIds = new Set(seedMeals.map((meal) => meal.id));
+      const extraDbMeals = dbMeals.filter((meal) => !seededMealIds.has(meal.id));
+      setMealsState([...seedMeals, ...extraDbMeals]);
       setMealPlansState(dbMealPlans);
       setFoodItemsState(dbFoodItems);
       setScheduledWorkoutsState(dbScheduledWorkouts);
