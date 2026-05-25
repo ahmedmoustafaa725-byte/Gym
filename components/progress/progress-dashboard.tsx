@@ -195,7 +195,7 @@ export function ProgressDashboard() {
 
   function measurementFromEntry(nextEntry: ProgressEntry): BodyMeasurements | null {
     const measurement: BodyMeasurements = {
-      id: `measurement-${crypto.randomUUID()}`,
+      id: crypto.randomUUID(),
       userId: profile.userId,
       progressEntryId: nextEntry.id,
       measuredAt: nextEntry.date,
@@ -279,7 +279,7 @@ export function ProgressDashboard() {
     try {
       const uploaded = progressPhoto ? await uploadProgressPhoto(progressPhoto, "progress-entry") : null;
       const nextEntry: ProgressEntry = {
-        id: `progress-${crypto.randomUUID()}`,
+        id: crypto.randomUUID(),
         userId: profile.userId,
         date: todayISO(),
         weightKg: toNumber(entry.weightKg),
@@ -345,7 +345,7 @@ export function ProgressDashboard() {
     try {
       const uploaded = checkinPhoto ? await uploadProgressPhoto(checkinPhoto, "weekly-checkin") : null;
       const nextCheckin: WeeklyCheckin = {
-        id: `checkin-${crypto.randomUUID()}`,
+        id: crypto.randomUUID(),
         userId: profile.userId,
         weekStart: todayISO(),
         currentWeightKg: optionalNumber(checkin.currentWeightKg),
@@ -644,6 +644,26 @@ export function ProgressDashboard() {
               <Sparkles className="h-4 w-4" />
               Weekly check-in
             </Button>
+          </CardContent>
+        </Card>
+
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Check-in history</CardTitle>
+            <CardDescription>Latest weekly check-ins saved to Supabase.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {checkins.slice().reverse().slice(0, 6).map((item) => (
+              <div key={item.id} className="rounded-md border bg-background/60 p-3 text-sm">
+                <p className="font-semibold">Week of {item.weekStart}</p>
+                <p className="mt-1 text-muted-foreground">
+                  Weight {item.currentWeightKg ?? "-"} kg - Energy {item.energy}/10 - Hunger {item.hunger}/10 - Sleep {item.sleepQuality ?? "-"}/10
+                </p>
+                {item.notes ? <p className="mt-1 text-muted-foreground">{item.notes}</p> : null}
+              </div>
+            ))}
+            {!checkins.length ? <p className="text-sm text-muted-foreground">No weekly check-ins yet.</p> : null}
           </CardContent>
         </Card>
 
