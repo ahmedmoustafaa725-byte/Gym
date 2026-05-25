@@ -212,7 +212,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setProfileState(nextProfile);
       setWorkoutPlanState(dbWorkoutPlan ?? emptyWorkoutPlan(nextProfile));
       setFoodLogsState(dbFoodLogs);
-      setMealsState(dbMeals);
+      const seededMealIds = new Set(seedMeals.map((meal) => meal.id));
+      const extraDbMeals = dbMeals.filter((meal) => !seededMealIds.has(meal.id));
+      setMealsState([...seedMeals, ...extraDbMeals]);
       setMealPlansState(dbMealPlans);
       setFoodItemsState(dbFoodItems);
       setScheduledWorkoutsState(dbScheduledWorkouts);
@@ -238,16 +240,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     setLoading(false);
   }, [realMode, refreshAppData, user]);
-
-  useEffect(() => {
-    if (realMode || !mealsHydrated) return;
-    setMockMeals((current) => {
-      const existingIds = new Set(current.map((meal) => meal.id));
-      const missingSeedMeals = seedMeals.filter((meal) => !existingIds.has(meal.id));
-      if (!missingSeedMeals.length) return current;
-      return [...current, ...missingSeedMeals];
-    });
-  }, [mealsHydrated, realMode, setMockMeals]);
 
   const setProfile: React.Dispatch<React.SetStateAction<Profile>> = useCallback(
     (action) => {
