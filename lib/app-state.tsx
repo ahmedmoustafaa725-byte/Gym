@@ -199,7 +199,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         listFoodLogs(user.id),
         listMeals(),
         listMealPlans(user.id),
-        listFoodItems({ cuisine: "Egyptian" }),
+        listFoodItems({ cuisine: "all" }),
         listScheduledWorkouts(user.id),
         listProgressEntries(user.id),
         listProgressPhotos(user.id),
